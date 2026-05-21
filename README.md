@@ -138,6 +138,49 @@ Reports are always saved locally to `C:\Logs` on Windows or `/tmp` on macOS/Linu
 
 > **Honest scope:** WormCatcher reports the findings produced by twelve checks at the time it ran. It does **not** certify the machine is virus-free, and makes no 100%-certainty claim. Mini Shai-Hulud is polymorphic and primarily lives in CI runners + stolen npm tokens — pair the scan with token rotation and a CI workflow audit per the [runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md).
 
+### Quick start (5 commands, all you need)
+
+```powershell
+# 1. Install PowerShell 7 if you don't have it (Windows; mac uses `brew install powershell`, Ubuntu uses `sudo apt install powershell`)
+winget install Microsoft.PowerShell
+
+# 2. Clone the repo
+git clone https://github.com/mbfromit/RatCatcher.git
+cd RatCatcher
+
+# 3. Allow scripts in this shell session (Windows only — macOS/Linux skip this)
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+# 4. Run the scanner — defaults already point to the production dashboard
+.\Invoke-MiniShaiHulud.ps1
+
+# 5. When prompted, enter the submission password your manager / DevOps team provided
+```
+
+Reports land in `C:\Logs` (Windows) or `/tmp` (macOS/Linux). Submissions appear on the dashboard at https://mbfromit.com/ratcatcher/dashboard under the **Mini Shai-Hulud** campaign tab.
+
+### Prerequisites
+
+- **PowerShell 7.0+** is required (cross-platform). Built-in Windows PowerShell 5.1 is not supported.
+
+  | Platform | Install command |
+  |---|---|
+  | Windows | `winget install Microsoft.PowerShell` |
+  | macOS | `brew install powershell` |
+  | Ubuntu/Debian | `sudo apt install powershell` (after adding Microsoft repo) |
+  | RHEL/CentOS | `sudo dnf install powershell` (after adding Microsoft repo) |
+
+- **Submission password** — same one your team already uses for RatCatcher. Ask DevOps or your manager.
+
+### Alternate install: download ZIP
+
+If you can't `git clone`:
+
+1. Go to https://github.com/mbfromit/RatCatcher
+2. Click **Code → Download ZIP**
+3. Extract to a folder (e.g. `C:\Tools\RatCatcher`)
+4. `cd` into it in PowerShell 7 and continue with step 3 above
+
 ### Basic scan (defaults to common dev folders under your home directory)
 
 ```powershell
