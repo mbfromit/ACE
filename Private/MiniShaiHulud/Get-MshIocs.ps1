@@ -87,8 +87,11 @@ function Get-MshIocs {
     }
 
     # 4. Hardcoded minimum
+    # Mirror what ships in the bundled JSON so a hardcoded-fallback scan
+    # doesn't quietly cover less than a bundled scan would. Bumped to schema
+    # v2 alongside the bundled JSON.
     $hardcoded = [PSCustomObject]@{
-        version                  = 1
+        version                  = 2
         campaign                 = 'mini-shai-hulud'
         updated_at               = '2026-05-21T00:00:00Z'
         packages                 = @(
@@ -97,10 +100,23 @@ function Get-MshIocs {
             [PSCustomObject]@{ name = '@cap-js/db-service'; versions = @('2.10.1') }
             [PSCustomObject]@{ name = 'mbt';                versions = @('1.2.48') }
             [PSCustomObject]@{ name = '@tanstack/*';        versions = @('*') }
+            [PSCustomObject]@{ name = '@antv/*';            versions = @('*') }
+            [PSCustomObject]@{ name = '@uipath/*';          versions = @('*') }
+            [PSCustomObject]@{ name = '@squawk/*';          versions = @('*') }
+            [PSCustomObject]@{ name = '@tallyui/*';         versions = @('*') }
+            [PSCustomObject]@{ name = '@mistralai/*';       versions = @('*') }
         )
         exfil_hosts              = @()
         exfil_url_patterns       = @('https?://raw\.githubusercontent\.com/[^/]+/[^/]+/(?:main|master)/(?:payload|exfil|stage2)\.js')
         suspicious_script_tokens = @('eval(', 'Function(', 'Buffer.from(', 'atob(', 'bun ', 'child_process')
+        payload_filenames        = @('bundle.js')
+        payload_hashes           = [PSCustomObject]@{ sha256 = @() }
+        workflow_filenames       = @('shai-hulud-workflow.yml', 'shai-hulud.yml', 'shai-hulud.yaml')
+        dropper_filenames        = @('processor.sh')
+        dropper_drop_paths       = @('<tmp>', '<home>', '<node_project>')
+        trufflehog_drop_paths    = @('/tmp/trufflehog', '~/Downloads/trufflehog', '~/.npm/_cacache/trufflehog')
+        exfil_repo_names         = @('Shai-Hulud')
+        exfil_repo_files         = @('data.json')
         attack_window_start      = '2026-04-01T00:00:00Z'
         attack_window_end        = $null
     }
