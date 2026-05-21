@@ -106,14 +106,18 @@ These two properties are coupled: widening coverage without bounding it caused a
 
 **For each workstation (run once, not per-root):**
 
-- Existing checks 6–12 — keep as corroborating evidence, but **demote severity** when checks 13/14 don't fire. They're high-noise signals — useful alongside a confirmed artifact, but should not produce CRITICAL on their own.
+- **NEW Check 15 — dropper artifact present.** `Test-Path` for each filename in the IOC feed's `dropper_filenames` list at each location in `dropper_drop_paths`. Default list: `processor.sh` at `/tmp/processor.sh`, `~/processor.sh`, and any `node_project` root discovered in Phase 1. **Match = CRITICAL, confirmed compromise** — these filenames are the worm's own staging artifacts and have no legitimate origin.
+- **NEW Check 16 — TruffleHog drop in unexpected location.** `Test-Path` for a `trufflehog` / `trufflehog.exe` binary at each location in the IOC feed's `trufflehog_drop_paths` list (default: `/tmp/trufflehog`, `~/Downloads/trufflehog`, `~/.npm/_cacache/trufflehog`, npm cache root). If found, capture file size and mtime into the finding. **Match = HIGH** (a developer could legitimately install TruffleHog elsewhere, but not into these paths); promote to **CRITICAL** if mtime falls inside the IOC feed's `attack_window`.
+- Existing checks 6–12 — keep as corroborating evidence, but **demote severity** when checks 13/14/15/16 don't fire. They're high-noise signals — useful alongside a confirmed artifact, but should not produce CRITICAL on their own.
 
 ### Severity model (updated — this is the headline behavior change)
 
 | Trigger | Verdict |
 |---|---|
-| Check 13 OR 14 fires | **CRITICAL — confirmed compromise** |
-| Checks 2/3/4 fire (bad package installed) without 13/14 | **HIGH — installed but execution unproven; treat as compromised pending forensics** |
+| Check 13, 14, OR 15 fires | **CRITICAL — confirmed compromise** (Tier-1 IOCs: workflow file, payload, or dropper artifact) |
+| Check 16 fires inside attack window | **CRITICAL — confirmed credential theft activity** |
+| Check 16 fires outside attack window | **HIGH — TruffleHog in unexpected drop path; could be benign install but unusual** |
+| Checks 2/3/4 fire (bad package installed) without 13/14/15 | **HIGH — installed but execution unproven; treat as compromised pending forensics** |
 | Only checks 5–12 fire | **MEDIUM — suggestive, requires human review** |
 | Nothing fires AND ≥ 1 scan root found | **CLEAN — high confidence** |
 | Nothing fires AND 0 scan roots found | **INCONCLUSIVE — scanner saw no eligible roots; user must supply `-Path`** |
@@ -144,9 +148,15 @@ Add optional fields to the IOC bundle at `https://mbfromit.com/ratcatcher/api/io
   "payload_filenames":     ["bundle.js", "bundle.js.map"],
   "payload_hashes":        { "sha256": ["...", "..."] },
   "workflow_filenames":    ["shai-hulud-workflow.yml", "shai-hulud.yml", "shai-hulud.yaml"],
-  "trufflehog_drop_paths": ["/tmp/trufflehog", "~/Downloads/trufflehog"]
+  "dropper_filenames":     ["processor.sh"],
+  "dropper_drop_paths":    ["/tmp", "~", "<each node_project root>"],
+  "trufflehog_drop_paths": ["/tmp/trufflehog", "~/Downloads/trufflehog", "~/.npm/_cacache/trufflehog"],
+  "exfil_repo_names":      ["Shai-Hulud"],
+  "exfil_repo_files":      ["data.json"]
 }
 ```
+
+> **`exfil_repo_names` / `exfil_repo_files`** describe the worm's GitHub-side persistence: after credential theft it creates a public repo on the victim's account named `Shai-Hulud` containing a `data.json` dump. This is a **remote** IOC — not checked by the workstation scanner (out of scope), but included in the feed so the dashboard / managers / a future GitHub-side scanner can use it. Document in the IOC catalog page on the dashboard.
 
 Scanner must default these locally if the feed omits them (backward compat with older feeds and offline scans). Suggested defaults above.
 
@@ -167,6 +177,8 @@ Plus the matching `Private/MiniShaiHulud/Find-Msh*.ps1` helpers in each tree.
 - `Private/MiniShaiHulud/Find-MshDiscoveryRoots.ps1` — Phase 1 walker, deny list, reparse-point + cloud-placeholder detection
 - `Private/MiniShaiHulud/Find-MshPayloadFile.ps1` — Check 14
 - `Private/MiniShaiHulud/Find-MshWormWorkflow.ps1` — Check 13
+- `Private/MiniShaiHulud/Find-MshDropperArtifact.ps1` — Check 15 (`processor.sh` and any other `dropper_filenames` at `dropper_drop_paths`)
+- `Private/MiniShaiHulud/Find-MshTrufflehogDrop.ps1` — Check 16 (TruffleHog binary at any `trufflehog_drop_paths`)
 
 ### Modified files (per tree)
 
@@ -187,8 +199,10 @@ Plus the matching `Private/MiniShaiHulud/Find-Msh*.ps1` helpers in each tree.
 
 ### Goal 1 — authoritative coverage
 
-- [ ] **Payload positive test:** Plant a fake `bundle.js` inside `<test-root>/node_modules/mbt/`. Scanner emits CRITICAL via Check 14, regardless of whether `<test-root>` is under `$env:USERPROFILE`.
-- [ ] **Workflow positive test:** Plant `<test-root>/.github/workflows/shai-hulud-workflow.yml`. Scanner emits CRITICAL via Check 13.
+- [ ] **Payload positive test (Check 14):** Plant a fake `bundle.js` inside `<test-root>/node_modules/mbt/`. Scanner emits CRITICAL, regardless of whether `<test-root>` is under `$env:USERPROFILE`.
+- [ ] **Workflow positive test (Check 13):** Plant `<test-root>/.github/workflows/shai-hulud-workflow.yml`. Scanner emits CRITICAL.
+- [ ] **Dropper positive test (Check 15):** Plant `processor.sh` at `/tmp/processor.sh` (Mac/Linux) or `$env:TEMP\processor.sh` (Windows fallback location for the same probe). Scanner emits CRITICAL.
+- [ ] **TruffleHog positive test (Check 16):** Plant a zero-byte `trufflehog` file at `/tmp/trufflehog` with an mtime inside `attack_window`. Scanner emits CRITICAL. With mtime well before the window, scanner emits HIGH.
 - [ ] **Path coverage test:** With no `-Path` argument, a `bundle.js` planted under a **non-USERPROFILE** location (e.g. `C:\TestRepo\node_modules\mbt\bundle.js`) is still found because discovery walks fixed drives.
 - [ ] **Zero-roots test:** Run on a machine with no git repos and no `package.json` anywhere discoverable. Scanner returns **INCONCLUSIVE**, not CLEAN.
 - [ ] **Report header test:** Every report names the roots it scanned and the count of paths it skipped.
@@ -218,10 +232,10 @@ Plus the matching `Private/MiniShaiHulud/Find-Msh*.ps1` helpers in each tree.
 ## Suggested commit sequence
 
 1. Add `Find-MshDiscoveryRoots.ps1` + tests (no behavior change to existing checks yet).
-2. Add `Find-MshPayloadFile.ps1` + `Find-MshWormWorkflow.ps1` + tests, wired into the existing scan flow.
+2. Add `Find-MshPayloadFile.ps1` + `Find-MshWormWorkflow.ps1` + `Find-MshDropperArtifact.ps1` + `Find-MshTrufflehogDrop.ps1` + tests, wired into the existing scan flow.
 3. Wire Phase 1 discovery into `Invoke-MiniShaiHulud.ps1` as the new `$Path` source; preserve the old USERPROFILE defaults as a fallback layer only if discovery yields zero roots (transition safety).
-4. Update report templates (`New-MshScanReport.ps1`, `New-MshExecBriefing.ps1`) with the new header + severity model.
-5. Extend IOC feed schema + bundled JSON; ensure scanner handles missing fields gracefully.
+4. Update report templates (`New-MshScanReport.ps1`, `New-MshExecBriefing.ps1`) with the new header + severity model (Tier-1 IOC list: checks 13, 14, 15, plus 16 inside attack window).
+5. Extend IOC feed schema + bundled JSON with `dropper_filenames`, `dropper_drop_paths`, `exfil_repo_names`, `exfil_repo_files`; ensure scanner handles missing fields gracefully.
 6. Update Worker handler + prompts to emit new fields. Deploy worker **after** the scanner is verified to handle absent fields.
 7. Update macOS + Windows quick-starts in `README.md` to reflect the new behavior.
 
