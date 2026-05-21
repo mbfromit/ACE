@@ -2,7 +2,10 @@ BeforeAll {
     . "$PSScriptRoot/../Private/Get-NetworkEvidence.ps1"
 }
 
-Describe 'Get-NetworkEvidence' {
+# Axios Get-NetworkEvidence is Windows-only by design (Get-NetTCPConnection,
+# ipconfig /displaydns). The tests mock cmdlets that don't exist in non-Windows
+# PowerShell sessions, so Pester's Mock fails to bind. Skip on Mac/Linux.
+Describe 'Get-NetworkEvidence' -Skip:(-not $IsWindows) {
     Context 'C2 IP in active TCP connections' {
         BeforeAll {
             Mock Get-NetTCPConnection {

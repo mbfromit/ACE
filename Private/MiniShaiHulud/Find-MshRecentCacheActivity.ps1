@@ -22,11 +22,29 @@ function Find-MshRecentCacheActivity {
         try { $attackEnd = [datetime]::Parse($Iocs.attack_window_end).ToUniversalTime() } catch { }
     }
 
+    # Cache roots vary per platform. pnpm uses XDG-style on Linux but
+    # ~/Library/pnpm on macOS, and Yarn Berry's global cache moved to
+    # ~/.yarn/berry/cache. We probe every plausible location — non-existent
+    # ones are skipped cheaply by the Test-Path below.
     $roots = @(
         Join-Path $HOME '.npm/_logs'
         Join-Path $HOME '.yarn/cache'
-        Join-Path $HOME '.local/share/pnpm/store'
+        Join-Path $HOME '.yarn/berry/cache'
     )
+    if ($IsMacOS) {
+        $roots += Join-Path $HOME 'Library/pnpm/store'
+        $roots += Join-Path $HOME 'Library/Caches/pnpm'
+    } elseif ($IsWindows) {
+        if ($env:LOCALAPPDATA) {
+            $roots += Join-Path $env:LOCALAPPDATA 'pnpm\store'
+            $roots += Join-Path $env:LOCALAPPDATA 'pnpm-cache'
+            $roots += Join-Path $env:LOCALAPPDATA 'npm-cache\_logs'
+        }
+    } else {
+        # Linux / other POSIX
+        $roots += Join-Path $HOME '.local/share/pnpm/store'
+        if ($env:XDG_DATA_HOME) { $roots += Join-Path $env:XDG_DATA_HOME 'pnpm/store' }
+    }
 
     # Build a fast match function over IOC package names (handles scope wildcards)
     function _NameMatches { param([string]$candidate)
