@@ -52,10 +52,17 @@ These two properties are coupled: widening coverage without bounding it caused a
 
 | OS | Default starting roots |
 |---|---|
-| Windows | All fixed drives (`Get-PSDrive -PSProvider FileSystem` where ready and `DriveType -eq 3`). Excludes network and removable by default — `-IncludeRemote` / `-IncludeRemovable` to opt in. |
-| macOS | `$HOME`, `/opt`, `/srv`, `/Volumes/*` (skip read-only volumes and Time Machine) |
-| Linux | `$HOME`, `/opt`, `/srv` |
+| Windows | **All fixed drives AND all removable drives** (`Get-PSDrive -PSProvider FileSystem` where `DriveType -in 2,3` and ready). Rationale: a developer's USB / external SSD with project files would be a false-negative if excluded. Network drives (`DriveType 4`) are off by default — opt in via `-IncludeNetworkDrives`. Per-drive opt-out via `-ExcludeDrives D,E`. |
+| macOS | `$HOME`, `/opt`, `/srv`, `/Volumes/*` (external mounts included; skip read-only volumes and Time Machine via volume info, not by name) |
+| Linux | `$HOME`, `/opt`, `/srv`, `/media/*`, `/mnt/*` |
 | Any | A user-supplied `-Path` argument **replaces** the defaults entirely. |
+
+**Drive-level safety valves are mandatory** (they are what makes the all-drives default safe):
+
+- Per-drive wall-clock cap **3 min** — if hit, log the drive as "partial scan" in the report header and move on
+- Per-tree wall-clock cap **90 s** — if hit, prune that tree and continue
+- Overall discovery cap **5 min** — if hit, log and proceed to Phase 2 with what we have
+- Report header **must** name every drive that was partial-scanned or skipped, with reason
 
 **Pruning rules (applied on directory entry, before descent):**
 
@@ -164,33 +171,33 @@ Scanner must default these locally if the feed omits them (backward compat with 
 
 ## Files to change
 
-All scanner-side changes land in three locations until the duplicate-tree question (see Open Questions) is resolved:
+All scanner-side changes land at the **repo root only**. The duplicate `RatCatcher/` + `cloudflare/RatCatcher/` trees were deleted in commit `03f2d22` (audited as outdated / no unique content) and gitignored.
 
 1. `Invoke-MiniShaiHulud.ps1` (repo root)
-2. `RatCatcher/Invoke-MiniShaiHulud.ps1` *(currently untracked — see Open Q1)*
-3. `cloudflare/RatCatcher/Invoke-MiniShaiHulud.ps1` *(currently untracked — see Open Q1)*
+2. `Private/MiniShaiHulud/Find-Msh*.ps1` helpers
+3. `cloudflare/src/handlers/iocs.js` (Worker)
+4. `cloudflare/src/iocs/mini-shai-hulud.js` (bundled fallback)
 
-Plus the matching `Private/MiniShaiHulud/Find-Msh*.ps1` helpers in each tree.
+### New files
 
-### New files (per tree)
-
-- `Private/MiniShaiHulud/Find-MshDiscoveryRoots.ps1` — Phase 1 walker, deny list, reparse-point + cloud-placeholder detection
+- `Private/MiniShaiHulud/Find-MshDiscoveryRoots.ps1` — Phase 1 walker, deny list, reparse-point + cloud-placeholder detection, per-drive / per-tree / overall caps
 - `Private/MiniShaiHulud/Find-MshPayloadFile.ps1` — Check 14
 - `Private/MiniShaiHulud/Find-MshWormWorkflow.ps1` — Check 13
 - `Private/MiniShaiHulud/Find-MshDropperArtifact.ps1` — Check 15 (`processor.sh` and any other `dropper_filenames` at `dropper_drop_paths`)
 - `Private/MiniShaiHulud/Find-MshTrufflehogDrop.ps1` — Check 16 (TruffleHog binary at any `trufflehog_drop_paths`)
 
-### Modified files (per tree)
+### Modified files
 
-- `Invoke-MiniShaiHulud.ps1` — replace hardcoded `$Path` default with a call to `Find-MshDiscoveryRoots`; invoke checks 13/14; emit new report header
-- `Private/MiniShaiHulud/New-MshScanReport.ps1` — render new header
+- `Invoke-MiniShaiHulud.ps1` — replace hardcoded `$Path` default with a call to `Find-MshDiscoveryRoots`; invoke checks 13–16; emit new report header. Add `-ExcludeDrives`, `-IncludeNetworkDrives`, `-DiscoveryTimeoutSec` parameters.
+- `Private/MiniShaiHulud/New-MshScanReport.ps1` — render new header (scanned roots, partial-scan drives, skipped paths)
 - `Private/MiniShaiHulud/New-MshExecBriefing.ps1` — render new severity model
 - `Private/MiniShaiHulud/Get-MshIocs.ps1` — accept new feed fields, default if absent
 - `Private/MiniShaiHulud/MiniShaiHulud-IOCs.json` — add new fields to bundled fallback
 
 ### Cloudflare Worker side
 
-- `cloudflare/src/handlers/iocs.js` (and the duplicate at `cloudflare/RatCatcher/cloudflare/src/handlers/iocs.js`) — emit the new fields
+- `cloudflare/src/handlers/iocs.js` — emit the new fields
+- `cloudflare/src/iocs/mini-shai-hulud.js` — bundled IOC source updated with new fields + sensible defaults
 - `cloudflare/src/prompts/mini-shai-hulud.js` — update if it references the feed schema
 
 ---
@@ -221,11 +228,11 @@ Plus the matching `Private/MiniShaiHulud/Find-Msh*.ps1` helpers in each tree.
 
 ---
 
-## Open questions — resolve before writing code
+## Open questions — RESOLVED 2026-05-21 turn-2
 
-1. **The duplicate trees.** `RatCatcher/` and `cloudflare/RatCatcher/` are currently untracked in the working tree. They were `A` (staged adds) at the start of one prior session but ended up untracked. Were they supposed to be committed? Are they deploy artifacts that should be `.gitignore`d? **Decide before touching code** — the answer determines whether changes land in one place or three.
-2. **Branch name.** `feature/mac-wormcatcher` is now a misnomer; this is cross-platform work. User said "let's just do it on this branch" so don't rename, but the PR title should describe the actual change, e.g. `feat: bounded, authoritative WormCatcher detection (checks 13/14 + discovery)`.
-3. **Default Windows discovery scope.** Walking *all* fixed drives is correct for authoritative coverage but slow if the box has a 4 TB media drive. **Recommend:** default to `C:\` only; require `-IncludeAllDrives` to widen; emit a warning in the report header when other fixed drives exist but weren't scanned.
+1. **The duplicate trees.** ✅ Audited (`RatCatcher/` was an older clone, `cloudflare/RatCatcher/` was a stale copy — both had no unique content). **Deleted and gitignored in commit `03f2d22`.** Implementation lands in one tree only.
+2. **Branch name.** ✅ Keep `feature/mac-wormcatcher` (don't rename). PR title: `feat: bounded, authoritative WormCatcher detection (checks 13/14 + discovery walk)`.
+3. **Default Windows discovery scope.** ✅ **All fixed drives + all removable drives**, network off by default. User raised the USB-dev-drive false-negative case; removable inclusion fixes it. Per-drive 3-min, per-tree 90-s, overall 5-min wall-clock caps keep this bounded. `-ExcludeDrives` / `-IncludeNetworkDrives` to tune.
 
 ---
 
