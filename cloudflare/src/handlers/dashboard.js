@@ -82,6 +82,16 @@ tr.remediated .vrd{color:#58a6ff;font-weight:bold}
 .stat.nrvw .val{color:#f0883e}
 .stat.unq .val{color:#58a6ff}
 .stats{flex-wrap:wrap}
+.camp-bar{display:flex;align-items:center;gap:10px;margin-bottom:14px;font-family:'Consolas',monospace;font-size:0.78rem}
+.camp-bar .camp-lbl{color:#6e7681;letter-spacing:2px;font-size:0.7rem;text-transform:uppercase}
+.camp-bar .camp{background:none;border:1px solid #2a2a2a;color:#8b949e;padding:5px 14px;cursor:pointer;font-family:monospace;font-size:0.72rem;letter-spacing:1px;border-radius:3px;transition:all 0.15s}
+.camp-bar .camp:hover{border-color:#444;color:#c9d1d9}
+.camp-bar .camp.selected{border-color:#00ff41;color:#00ff41;background:rgba(0,255,65,.06)}
+.camp-bar .camp.msh.selected{border-color:#d4c222;color:#d4c222;background:rgba(212,194,34,.06)}
+.camp-bar .camp.ax.selected{border-color:#58a6ff;color:#58a6ff;background:rgba(88,166,255,.06)}
+.camp-chip{display:inline-block;padding:1px 7px;font-size:0.62rem;font-weight:bold;letter-spacing:1.5px;border-radius:3px;margin-left:6px;font-family:monospace;vertical-align:middle}
+.camp-chip.ax{background:rgba(88,166,255,.12);color:#58a6ff;border:1px solid rgba(88,166,255,.3)}
+.camp-chip.msh{background:rgba(212,194,34,.12);color:#d4c222;border:1px solid rgba(212,194,34,.3)}
 .aibtn{background:none;border:1px solid #2a3f5f;color:#58a6ff;padding:3px 10px;cursor:pointer;font-family:monospace;font-size:0.72rem}
 .aibtn:hover{border-color:#58a6ff;background:rgba(88,166,255,.08)}
 .aibtn:disabled{opacity:0.5;cursor:default}
@@ -256,6 +266,12 @@ tr.remediated .vrd{color:#58a6ff;font-weight:bold}
   <button class="v2-mini" id="v2mini" onclick="openWhatsNew()">&#9432; What's New in v2.0</button>
   <button class="legend-btn" onclick="openWorkflow()">&#9432; Manager Workflow</button>
   <button class="legend-btn" onclick="openLegend()">&#9432; Status Legend</button>
+  <div class="camp-bar">
+    <span class="camp-lbl">Campaign:</span>
+    <button class="camp selected" id="c-all" data-camp="">All</button>
+    <button class="camp ax" id="c-axios" data-camp="axios">Axios</button>
+    <button class="camp msh" id="c-msh" data-camp="mini-shai-hulud">Mini Shai-Hulud</button>
+  </div>
   <div class="stats">
     <div class="stat selected" id="f-all"><div class="lbl">Total Scans</div><div class="val" id="s-total">-</div></div>
     <div class="stat unq" id="f-unique"><div class="lbl">Unique Scans</div><div class="val" id="s-unique">-</div></div>
@@ -560,7 +576,7 @@ function rcConfirm(msg){
 }
 function _vl(s){if(s.ai_verdict==='AI_PENDING')return'[...] AI Evaluating';if(s.ai_verdict==='AI_COMPROMISE')return'[!] AI Verified Compromise';if(s.ai_verdict==='AI_FALSE_POSITIVE')return'[~] AI Verified RAT Free!';if(s.ai_verdict==='AI_CLEAN')return'[+] AI Verified Clean';if(s.ai_verdict==='AI_PARTIAL')return'[!] AI Partial - Re-Evaluate';if(s.remediated)return'[+] REMEDIATED';return s.verdict==='COMPROMISED'?'[!] COMPROMISED':'[+] CLEAN'}
 function _certBadge(s){if(s.ai_verdict!=='AI_COMPROMISE')return'';if(s.certified_by)return'<span class="cert-done"> &#10003; Certified by '+esc(s.certified_by)+'</span>';return'<span class="await-review"> &#9888; Awaiting Manager Review</span>';}
-const B=location.pathname.replace(/\\/dashboard$/,''),L=50;var pw='';let pg=1,refreshTimer=null,vfilter='',rfilter='',pfilter='',srchQ='';
+const B=location.pathname.replace(/\\/dashboard$/,''),L=50;var pw='';let pg=1,refreshTimer=null,vfilter='',rfilter='',pfilter='',srchQ='',campaign='';
 let uPg=1,uUser='';
 function show(id,mode){document.getElementById(id).style.display=mode||'block'}
 function hide(ids){ids.forEach(function(id){document.getElementById(id).style.display='none'})}
@@ -591,7 +607,7 @@ async function chkAuth(){
 }
 async function loadStats(){
   try{
-    const r=await api('/api/stats'),d=await r.json();
+    const r=await api('/api/stats'+(campaign?'?campaign='+campaign:'')),d=await r.json();
     document.getElementById('s-total').textContent=(d.total??0).toLocaleString();
     document.getElementById('s-clean').textContent=(d.clean??0).toLocaleString();
     document.getElementById('s-pos').textContent=(d.positive??0).toLocaleString();
@@ -602,7 +618,7 @@ async function loadStats(){
   }catch(e){console.error('loadStats',e)}
 }
 async function loadRows(){
-  const r=await api('/api/submissions?page='+pg+'&limit='+L+(vfilter?'&verdict='+vfilter:'')+(pfilter?'&positive=1':'')+(rfilter!==''?'&reviewed='+rfilter:'')+(srchQ?'&search='+encodeURIComponent(srchQ):'')),d=await r.json();
+  const r=await api('/api/submissions?page='+pg+'&limit='+L+(vfilter?'&verdict='+vfilter:'')+(pfilter?'&positive=1':'')+(rfilter!==''?'&reviewed='+rfilter:'')+(srchQ?'&search='+encodeURIComponent(srchQ):'')+(campaign?'&campaign='+campaign:'')),d=await r.json();
   const tb=document.getElementById('tb');
   tb.innerHTML='';
   if(!d.submissions||!d.submissions.length){
@@ -610,7 +626,15 @@ async function loadRows(){
   } else {
     d.submissions.forEach(s=>{
       const tr=document.createElement('tr');
-      tr.className=s.remediated?'remediated':s.ai_verdict==='AI_FALSE_POSITIVE'?'ai-fp':s.verdict==='COMPROMISED'?'comp':'clean';
+      // AI_CLEAN and AI_FALSE_POSITIVE both mean the AI cleared this row —
+      // render green (clean) so the row color matches the verdict label.
+      // Without this AI_CLEAN rows fell through to 'comp' (red) when verdict
+      // was COMPROMISED, producing a green-labelled red row.
+      tr.className = s.remediated ? 'remediated'
+        : s.ai_verdict === 'AI_FALSE_POSITIVE' ? 'ai-fp'
+        : s.ai_verdict === 'AI_CLEAN' ? 'clean'
+        : s.verdict === 'COMPROMISED' ? 'comp'
+        : 'clean';
       const dt=new Date(s.submitted_at).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'});
       const ltag=s.is_latest?'<span class="latest">LATEST</span>':'';
       const aiBtn=s.ai_verdict==='AI_PENDING'
@@ -618,7 +642,8 @@ async function loadRows(){
         :s.ai_verdict==='AI_PARTIAL'
         ?'<button class="aibtn" style="border-color:#e8a838;color:#e8a838" onclick="aiEval(&#39;'+esc(s.id)+'&#39;,this,&#39;'+esc(s.hostname)+'&#39;,&#39;'+esc(s.username)+'&#39;)">&#9888; Re-Evaluate</button>'
         :'';
-      tr.innerHTML='<td>'+esc(dt)+'</td><td><a href="#" style="color:inherit;text-decoration:none" onclick="filterByHost(&#39;'+esc(s.hostname)+'&#39;);return false" title="Click to see all scans for this host">'+esc(s.hostname)+'</a>'+ltag+'</td><td>'+esc(s.username)+'</td>'
+      const campChip=s.campaign==='mini-shai-hulud'?'<span class="camp-chip msh">MSH</span>':s.campaign==='axios'?'<span class="camp-chip ax">AX</span>':'';
+      tr.innerHTML='<td>'+esc(dt)+'</td><td><a href="#" style="color:inherit;text-decoration:none" onclick="filterByHost(&#39;'+esc(s.hostname)+'&#39;);return false" title="Click to see all scans for this host">'+esc(s.hostname)+'</a>'+ltag+campChip+'</td><td>'+esc(s.username)+'</td>'
         +'<td>'+esc(fmtDur(s.duration))+'</td>'
         +'<td class="vrd">'+_vl(s)+_certBadge(s)+(s.positive?'<span class="positive"> &#9888; POSITIVE FINDING</span>':s.reviewed?'<span class="reviewed"> &#10003; REVIEWED</span>':'')+'</td>'
         +'<td><button class="vbtn" onclick="vw(&#39;'+esc(s.id)+'&#39;,&#39;brief&#39;)">Exec Brief</button> <button class="vbtn" onclick="vw(&#39;'+esc(s.id)+'&#39;,&#39;full&#39;)">Technical Report</button>'
@@ -704,6 +729,16 @@ document.getElementById('f-pos').addEventListener('click',()=>setFilter('','','1
 document.getElementById('f-reviewed').addEventListener('click',()=>setFilter('','1',''));
 document.getElementById('f-remediated').addEventListener('click',function(){setFilter('','remediated','')});
 document.getElementById('f-unique').addEventListener('click',function(){setFilter('','unique','')});
+function setCampaign(c){
+  campaign=c||'';pg=1;
+  document.querySelectorAll('.camp-bar .camp').forEach(el=>el.classList.remove('selected'));
+  const sel=campaign==='axios'?'c-axios':campaign==='mini-shai-hulud'?'c-msh':'c-all';
+  document.getElementById(sel).classList.add('selected');
+  refresh();
+}
+document.querySelectorAll('.camp-bar .camp').forEach(function(btn){
+  btn.addEventListener('click',function(){setCampaign(this.dataset.camp)});
+});
 let srchTimer=null;
 document.getElementById('srch').addEventListener('input',function(){
   clearTimeout(srchTimer);
@@ -714,7 +749,7 @@ document.getElementById('srchclr').addEventListener('click',()=>{
 });
 document.getElementById('logout').addEventListener('click',logout);
 document.getElementById('csvbtn').addEventListener('click',async function(){
-  const r=await api('/api/export');
+  const r=await api('/api/export'+(campaign?'?campaign='+campaign:''));
   if(!r.ok){await rcAlert('Export failed ('+r.status+')');return;}
   const blob=await r.blob();
   const a=document.createElement('a');
@@ -985,7 +1020,11 @@ async function loadUserRows(){
   } else {
     d.submissions.forEach(function(s){
       var tr=document.createElement('tr');
-      tr.className=s.ai_verdict==='AI_PENDING'?'comp':s.ai_verdict==='AI_FALSE_POSITIVE'?'ai-fp':s.verdict==='COMPROMISED'?'comp':'clean';
+      tr.className = s.ai_verdict === 'AI_PENDING' ? 'comp'
+        : s.ai_verdict === 'AI_FALSE_POSITIVE' ? 'ai-fp'
+        : s.ai_verdict === 'AI_CLEAN' ? 'clean'
+        : s.verdict === 'COMPROMISED' ? 'comp'
+        : 'clean';
       var dt=new Date(s.submitted_at).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'});
       var ltag=s.is_latest?'<span class="latest">LATEST</span>':'';
       var aiStatus=s.ai_verdict==='AI_PENDING'?'<span class="aibtn running" style="cursor:default;margin-left:6px">AI Evaluating...</span>':'';

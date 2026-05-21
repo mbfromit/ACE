@@ -14,10 +14,14 @@ export async function handleSubmissions(request, env) {
   const reviewed = url.searchParams.get('reviewed')
   const filterReviewed = reviewed === '1' || reviewed === '0' || reviewed === 'unreviewed' || reviewed === 'remediated' || reviewed === 'unique' ? reviewed : null
   const positive = url.searchParams.get('positive')
+  const campaign = url.searchParams.get('campaign')
+  const validCampaigns = ['axios', 'mini-shai-hulud']
+  const filterCampaign = validCampaigns.includes(campaign) ? campaign : null
 
   try {
     const conditions = []
     const binds = []
+    if (filterCampaign) { conditions.push('campaign = ?'); binds.push(filterCampaign) }
     if (filterVerdict) { conditions.push('verdict = ?'); binds.push(filterVerdict) }
     if (search) { conditions.push('(hostname LIKE ? OR username LIKE ?)'); binds.push('%'+search+'%', '%'+search+'%') }
     if (positive === '1') {
@@ -71,7 +75,7 @@ export async function handleSubmissions(request, env) {
       FROM (
         SELECT id, hostname, username, submitted_at, verdict, ai_verdict, duration,
                projects_scanned, vulnerable_count, critical_count, findings_count,
-               certified_by, certified_at
+               certified_by, certified_at, campaign
         FROM submissions${where}
         ORDER BY submitted_at DESC
         LIMIT ? OFFSET ?
@@ -97,8 +101,25 @@ export async function handleSubmissions(request, env) {
 export async function handleStats(request, env) {
   if (!checkAdminPassword(request, env)) return json({ error: 'Unauthorized' }, 401)
 
+  const url = new URL(request.url)
+  const campaign = url.searchParams.get('campaign')
+  const validCampaigns = ['axios', 'mini-shai-hulud']
+  const filterCampaign = validCampaigns.includes(campaign) ? campaign : null
+
+  // When a campaign filter is active every reference to the submissions table
+  // (including those inside latest/remediated subqueries) must be scoped to
+  // the same campaign — otherwise a host that has scans for two campaigns
+  // pollutes the other campaign's stats.
+  const camp  = filterCampaign ? ` AND campaign = ?` : ''
+  const campW = filterCampaign ? ` WHERE campaign = ?` : ''
+  // Main query has two `${campW}` injection points (outer FROM + latest subquery).
+  const bindsMain = filterCampaign ? [filterCampaign, filterCampaign] : []
+  // Remediated query has three `${camp}` injection points (outer WHERE, MAX
+  // subquery, EXISTS subquery — all already had a WHERE so AND-form is used).
+  const bindsRem  = filterCampaign ? [filterCampaign, filterCampaign, filterCampaign] : []
+
   try {
-    const row = await env.DB.prepare(`
+    const mainStmt = env.DB.prepare(`
       SELECT
         COUNT(*) AS total,
         COUNT(DISTINCT s.hostname) AS unique_hosts,
@@ -117,7 +138,7 @@ export async function handleStats(request, env) {
                         OR (COALESCE(tc.threat_count, 0) = 0
                             AND s.findings_count > 0
                             AND COALESCE(ac.ack_count, 0) >= s.findings_count))
-                   AND ai_verdict != 'AI_COMPROMISE'
+                   AND COALESCE(ai_verdict, '') != 'AI_COMPROMISE'
                  THEN 1 ELSE 0 END) AS reviewed,
         SUM(CASE WHEN s.submitted_at = latest.max_at
               AND verdict = 'COMPROMISED'
@@ -129,7 +150,7 @@ export async function handleStats(request, env) {
         SUM(CASE WHEN ai_verdict = 'AI_COMPROMISE' AND certified_by IS NULL THEN 1 ELSE 0 END) AS awaiting_cert
       FROM submissions s
       LEFT JOIN (
-        SELECT hostname, MAX(submitted_at) AS max_at FROM submissions GROUP BY hostname
+        SELECT hostname, MAX(submitted_at) AS max_at FROM submissions${campW} GROUP BY hostname
       ) latest ON s.hostname = latest.hostname
       LEFT JOIN (
         SELECT submission_id, COUNT(*) AS ack_count FROM finding_acknowledgements GROUP BY submission_id
@@ -137,9 +158,11 @@ export async function handleStats(request, env) {
       LEFT JOIN (
         SELECT submission_id, COUNT(*) AS threat_count FROM finding_acknowledgements WHERE is_threat = 1 GROUP BY submission_id
       ) tc ON s.id = tc.submission_id
-    `).first()
+      ${filterCampaign ? 'WHERE s.campaign = ?' : ''}
+    `)
+    const row = await (bindsMain.length ? mainStmt.bind(...bindsMain) : mainStmt).first()
 
-    const remRow = await env.DB.prepare(`
+    const remStmt = env.DB.prepare(`
       SELECT COUNT(DISTINCT s1.hostname) AS remediated
       FROM submissions s1
       LEFT JOIN (
@@ -148,8 +171,8 @@ export async function handleStats(request, env) {
       LEFT JOIN (
         SELECT submission_id, COUNT(*) AS threat_count FROM finding_acknowledgements WHERE is_threat = 1 GROUP BY submission_id
       ) tc ON s1.id = tc.submission_id
-      WHERE s1.submitted_at = (SELECT MAX(submitted_at) FROM submissions WHERE hostname = s1.hostname)
-        AND EXISTS (SELECT 1 FROM submissions s2 WHERE s2.hostname = s1.hostname AND s2.verdict = 'COMPROMISED')
+      WHERE s1.submitted_at = (SELECT MAX(submitted_at) FROM submissions WHERE hostname = s1.hostname${camp})
+        AND EXISTS (SELECT 1 FROM submissions s2 WHERE s2.hostname = s1.hostname AND s2.verdict = 'COMPROMISED'${camp})
         AND (
           s1.verdict = 'CLEAN'
           OR (
@@ -162,8 +185,9 @@ export async function handleStats(request, env) {
             )
             AND COALESCE(s1.ai_verdict, '') != 'AI_COMPROMISE'
           )
-        )
-    `).first()
+        )${camp}
+    `)
+    const remRow = await (bindsRem.length ? remStmt.bind(...bindsRem) : remStmt).first()
 
     return json({
       total:         row?.total         ?? 0,
@@ -303,7 +327,12 @@ function _rcViewFull(){
       // Inject ack script — use absolute URL so it works from blob: origins
       const ackScript = `<script>
 (function(){
-  var SUB='${safeId}',B='${reportOrigin}/ratcatcher';
+  // basePath is /ratcatcher in prod, /ratcatcher-dev in dev. Using the
+  // hardcoded /ratcatcher caused dev-rendered reports to POST acks into the
+  // prod backend, where the dev submission ID may not exist and the prod ack
+  // table got polluted. The AI-verdict and cert scripts below already use
+  // basePath; this script must too.
+  var SUB='${safeId}',B='${reportOrigin}${basePath}';
   function requirePW(){if(!window._rcPW)window._rcPW=prompt('Admin password:','')||'';return window._rcPW||''}
   function clearPW(){window._rcPW=''}
   function getHeaders(){return{'X-Admin-Password':window._rcPW||'','Content-Type':'application/json'}}
@@ -820,17 +849,24 @@ export async function handleDeleteSubmission(request, env, id) {
 export async function handleExport(request, env) {
   if (!checkAdminPassword(request, env)) return json({ error: 'Unauthorized' }, 401)
 
-  try {
-    const rows = await env.DB.prepare(`
-      SELECT hostname, username, submitted_at, verdict, duration,
-             projects_scanned, vulnerable_count, critical_count
-      FROM submissions
-      ORDER BY submitted_at DESC
-    `).all()
+  const url = new URL(request.url)
+  const campaign = url.searchParams.get('campaign')
+  const validCampaigns = ['axios', 'mini-shai-hulud']
+  const filterCampaign = validCampaigns.includes(campaign) ? campaign : null
 
-    const header = 'Hostname,Username,Submitted,Verdict,Duration,Projects Scanned,Vulnerable Count,Critical Count'
+  try {
+    const sql = `
+      SELECT campaign, hostname, username, submitted_at, verdict, duration,
+             projects_scanned, vulnerable_count, critical_count
+      FROM submissions${filterCampaign ? ' WHERE campaign = ?' : ''}
+      ORDER BY submitted_at DESC
+    `
+    const stmt = env.DB.prepare(sql)
+    const rows = await (filterCampaign ? stmt.bind(filterCampaign) : stmt).all()
+
+    const header = 'Campaign,Hostname,Username,Submitted,Verdict,Duration,Projects Scanned,Vulnerable Count,Critical Count'
     const csvRows = (rows.results || []).map(r => {
-      const fields = [r.hostname, r.username, r.submitted_at, r.verdict, r.duration,
+      const fields = [r.campaign, r.hostname, r.username, r.submitted_at, r.verdict, r.duration,
                       r.projects_scanned, r.vulnerable_count, r.critical_count]
       return fields.map(f => '"' + String(f ?? '').replace(/"/g, '""') + '"').join(',')
     })

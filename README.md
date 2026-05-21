@@ -2,7 +2,12 @@
 
 ![RatCatcher 2.0](RatCatcher2.png)
 
-An **AI-powered, cross-platform** PowerShell forensic scanner for detecting evidence of the **March 31, 2026 Axios NPM supply chain attack**, which distributed a malicious `plain-crypto-js` dependency via compromised versions of the `axios` package (v1.14.1 and v0.30.4). RatCatcher runs ten checks covering the full compromise kill chain, produces detailed reports, and **automatically evaluates every finding using Gemma 4 AI** to distinguish real threats from false positives.
+An **AI-powered, cross-platform** PowerShell forensic scanner suite for npm supply-chain compromise. The suite ships two scanners that submit to a shared dashboard:
+
+- **`Invoke-RatCatcher.ps1`** (**RatCatcher**) — the **March 31, 2026 Axios NPM supply chain attack** (malicious `plain-crypto-js` dependency in `axios` v1.14.1 / v0.30.4). Ten checks covering the full compromise kill chain.
+- **`Invoke-MiniShaiHulud.ps1`** (**WormCatcher**) — the **Mini Shai-Hulud npm supply-chain worm** (TeamPCP, April–May 2026 onward). Twelve workstation checks. See [WormCatcher usage below](#running-wormcatcher-mini-shai-hulud) and the [WormCatcher runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md). Reports findings only — does **not** certify a machine virus-free (the campaign is polymorphic and lives primarily in CI runners + stolen npm tokens, not on workstations).
+
+Both scanners produce detailed reports and **automatically evaluate every finding using Gemma 4 AI** to distinguish real threats from false positives. The dashboard segments submissions by campaign (Axios vs Mini Shai-Hulud) via a top-level selector, with independent filtering, stats, and AI prompting per campaign.
 
 **Supported Platforms:** Windows, macOS, and Linux.
 
@@ -124,6 +129,117 @@ pwsh ./Invoke-RatCatcher.ps1 -Path /home/user
 Before the scan begins, you will be prompted to enter a **submission password**. This password is required — the scan will not run without it. Contact your **manager** or the **DevOps team** to obtain the password.
 
 Reports are always saved locally to `C:\Logs` on Windows or `/tmp` on macOS/Linux (or `-OutputPath`).
+
+---
+
+## Running WormCatcher (Mini Shai-Hulud)
+
+**WormCatcher** (`Invoke-MiniShaiHulud.ps1`) is the sibling scanner for the **Mini Shai-Hulud** npm supply-chain worm. It is a separate script from RatCatcher — different IOCs, different TTPs, different campaign tag in the dashboard. Both scanners can be run on the same machine in either order.
+
+> **Honest scope:** WormCatcher reports the findings produced by twelve checks at the time it ran. It does **not** certify the machine is virus-free, and makes no 100%-certainty claim. Mini Shai-Hulud is polymorphic and primarily lives in CI runners + stolen npm tokens — pair the scan with token rotation and a CI workflow audit per the [runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md).
+
+### Basic scan (defaults to common dev folders under your home directory)
+
+```powershell
+# Windows
+.\Invoke-MiniShaiHulud.ps1
+
+# macOS / Linux
+pwsh ./Invoke-MiniShaiHulud.ps1
+```
+
+### Scan a specific folder
+
+```powershell
+.\Invoke-MiniShaiHulud.ps1 -Path C:\Dev
+pwsh ./Invoke-MiniShaiHulud.ps1 -Path ~/Projects
+```
+
+### Offline / air-gapped scan
+
+```powershell
+# Skip dashboard submission
+.\Invoke-MiniShaiHulud.ps1 -NoSubmit
+
+# Also skip the live IOC feed — use the bundled JSON shipped with the script
+.\Invoke-MiniShaiHulud.ps1 -NoSubmit -NoIocNetwork
+```
+
+### Non-interactive (CI / automation)
+
+```powershell
+.\Invoke-MiniShaiHulud.ps1 -SubmitPassword 'xxx' -NonInteractive
+```
+
+### Custom output location
+
+```powershell
+.\Invoke-MiniShaiHulud.ps1 -OutputPath C:\IR\Reports
+```
+
+### Submission password
+
+Same submission password as RatCatcher — contact your manager or DevOps team. WormCatcher submissions land in the same dashboard tagged with the **Mini Shai-Hulud** campaign, distinguishable from Axios scans by an `[MSH]` chip on each row and via the **Campaign** selector at the top of the dashboard.
+
+### What WormCatcher checks (12 checks)
+
+| # | Check | Default severity if hit |
+|---|---|---|
+| 1 | Discover Node.js projects | n/a (enumeration) |
+| 2 | Lockfile match against the IOC package list (scope wildcards supported) | Critical |
+| 3 | `package.json` direct dependency match | Critical |
+| 4 | Physical `node_modules/<scope>/<name>/package.json` match — catches anti-forensic lockfile cleanup | Critical |
+| 5 | Suspicious `postinstall` / `preinstall` scripts (`eval(`, `Function(`, `Buffer.from(...,'base64')`, `atob(`, `bun ` token, `child_process`, long base64 blobs) | High; Critical when decode + exec combined |
+| 6 | Bun runtime presence + attack-window activity | Informational by default; High with corroborating activity |
+| 7 | npm cache (`~/.npm/_cacache`) + `npm root -g` IOC hits | High (cache) / Critical (global install) |
+| 8 | Token-file `LastAccessTime` inside attack window (`~/.npmrc`, `~/.docker/config.json`, `~/.config/gh/hosts.yml`, `~/.aws/credentials`, `~/.ssh/id_*`, `~/.gitconfig`, `~/.netrc`) | High — corroborating evidence only (atime is unreliable on some platforms) |
+| 9 | GitHub Actions self-hosted runner artifacts (`actions-runner/`, `_work/`, `.runner`) | Critical |
+| 10 | Recent activity inside attack window under npm / yarn / pnpm caches | High (Critical if filename matches IOC list) |
+| 11 | DNS cache + active TCP connections vs IOC exfil hosts | Informational / High (DNS) / Critical (active connection) |
+| 12 | `npm publish` events in bash/zsh/PSReadline history | High |
+
+The IOC list is fetched from the dashboard at startup, with a bundled JSON fallback and a 7-day temp cache for offline use. The bundled list ships with `Invoke-MiniShaiHulud.ps1` and is updated on the server when new waves disclose new compromised packages — re-run WormCatcher after each disclosed wave for full coverage.
+
+### Out of scope (will NOT be detected)
+
+- CI runner state on dedicated build infrastructure
+- npm registry-side audit (publisher accounts, token issuance logs)
+- GitHub Actions workflow logs and OIDC token replay traces
+- SLSA provenance verification (the worm has demonstrated that valid provenance is no longer a safety guarantee)
+- IOC packages not yet in the feed — re-run after each wave
+- Compromise that has cleaned up after itself with no residual disk evidence
+
+For the full remediation playbook (revoke npm tokens, rotate cloud creds, audit `.github/workflows/*.yml` for Pwn Request patterns), see the [WormCatcher runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md).
+
+### Verdict labels and exit codes
+
+| Verdict | Meaning | Exit code |
+|---|---|---|
+| `CLEAN` | No findings across the 12 checks | `0` |
+| `REVIEW` | High-severity findings but no IOC matches — corroborating evidence (token-file atime, recent npm cache activity). Glance at the report, do not panic. | `0` |
+| `COMPROMISED` | At least one Critical finding — known Mini Shai-Hulud IOC matched. Treat as an incident, follow the runbook mitigation steps. | `1` |
+
+`REVIEW` returns exit 0 so it does not break CI gates. Only `COMPROMISED` (Critical IOC match) is non-zero. The dashboard still receives `COMPROMISED` for `REVIEW`-state scans so manager workflow and AI verification engage — the three-state label is purely local.
+
+### Verifying WormCatcher locally (synthetic IOCs)
+
+Plant synthetic Mini Shai-Hulud artifacts under a test root and confirm the scanner detects them, then clean up. Safe to run on any workstation — nothing touches your real npm cache, runner directories, or token files.
+
+```powershell
+# Plant synthetic IOCs
+.\TestArtifacts\MiniShaiHulud\Deploy-All.ps1
+
+# Scan the test root (no submission, no prompts)
+.\Invoke-MiniShaiHulud.ps1 -Path C:\RatCatcherTest\MiniShaiHulud -NoSubmit -NonInteractive
+
+# Clean up
+.\TestArtifacts\MiniShaiHulud\Remove-All.ps1
+
+# Re-scan — should report no findings
+.\Invoke-MiniShaiHulud.ps1 -Path C:\RatCatcherTest\MiniShaiHulud -NoSubmit -NonInteractive
+```
+
+Expected outcome on the first scan: at least one Critical from checks 2, 4, 5, and 9.
 
 ---
 

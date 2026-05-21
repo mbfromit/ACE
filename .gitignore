@@ -5,6 +5,14 @@ cloudflare/node_modules/
 # Database backups — contain scan data, keep local only
 *.sql
 ratcatcher-db-backup-*.sql
+# But DO track migrations and the canonical schema (existing 0004/0005 were
+# tracked before the *.sql rule existed; new migrations would be silently
+# dropped without these negations).
+!cloudflare/migrations/*.sql
+!cloudflare/schema.sql
 
 # Error capture files (transient)
 *.rtf
+
+# Claude Code local settings — per-machine, not shared
+.claude/

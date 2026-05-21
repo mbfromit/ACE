@@ -4,6 +4,7 @@ import { handleDashboard }                                 from './handlers/dash
 import { handleGetAcks, handlePostAck, handleDeleteAck, handleUpdateFindingsCount, handleCertify, handleOverrideVerdict } from './handlers/ack.js'
 import { handleAiVerify, handleGetAiVerdicts, handleAiVerifyAll, handleAiStatus, handleAiWarmup, verifySubmissionFindings } from './handlers/ai-verify.js'
 import { handleUserReport }                                from './handlers/userReport.js'
+import { handleIocs }                                      from './handlers/iocs.js'
 
 export default {
   async scheduled(event, env, ctx) {
@@ -100,6 +101,9 @@ export default {
 
     const userReportMatch = rel.match(/^\/api\/user-report\/([^/]+)\/(brief|full)$/)
     if (userReportMatch) return handleUserReport(request, env, userReportMatch[1], userReportMatch[2])
+
+    const iocsMatch = rel.match(/^\/api\/iocs\/([a-z0-9-]+)$/)
+    if (iocsMatch) return handleIocs(request, env, iocsMatch[1])
 
     return new Response('Not Found', { status: 404 })
   }

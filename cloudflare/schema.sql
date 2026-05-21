@@ -10,6 +10,10 @@ CREATE TABLE IF NOT EXISTS submissions (
     vulnerable_count INTEGER,
     critical_count   INTEGER,
     paths_scanned    TEXT,
+    campaign         TEXT NOT NULL DEFAULT 'axios',
     brief_key        TEXT NOT NULL,
     report_key       TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_submissions_campaign ON submissions(campaign);
+CREATE INDEX IF NOT EXISTS idx_submissions_campaign_submitted
+  ON submissions(campaign, submitted_at DESC);

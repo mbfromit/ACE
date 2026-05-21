@@ -12,7 +12,10 @@ function Submit-ScanToApi {
         [int]$CriticalCount,
         [string]$PathsScanned,
         [string]$BriefPath,
-        [string]$ReportPath
+        [string]$ReportPath,
+        # Campaign discriminator. Default 'axios' keeps existing scanner byte-identical.
+        # Mini Shai-Hulud scanner passes 'mini-shai-hulud'. Server validates whitelist.
+        [string]$Campaign = 'axios'
     )
 
     if ([string]::IsNullOrEmpty($Password)) {
@@ -41,6 +44,7 @@ function Submit-ScanToApi {
             vulnerable_count = [string]$VulnerableCount
             critical_count   = [string]$CriticalCount
             paths_scanned    = $PathsScanned
+            campaign         = $Campaign
         }
 
         foreach ($key in $fields.Keys) {

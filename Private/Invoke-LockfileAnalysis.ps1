@@ -18,16 +18,18 @@ function Invoke-LockfileAnalysis {
         Error                   = $null
     }
 
-    $pkgLock  = Join-Path $ProjectPath 'package-lock.json'
-    $yarnLock = Join-Path $ProjectPath 'yarn.lock'
-    $pnpmLock = Join-Path $ProjectPath 'pnpm-lock.yaml'
+    $lock = Get-LockfileText -ProjectPath $ProjectPath
+    if (-not $lock.Type) { return $result }
 
-    if (Test-Path $pkgLock) {
-        $result.LockfileType = 'npm'; $result.LockfilePath = $pkgLock
-        try {
-            $content = Get-Content $pkgLock -Raw -ErrorAction Stop
-            # Regex search avoids ConvertFrom-Json which is very slow on large lockfiles in PS5.1.
+    $result.LockfileType = $lock.Type
+    $result.LockfilePath = $lock.Path
+    if ($lock.Error)  { $result.Error = $lock.Error; return $result }
+    $content = $lock.Content
+
+    switch ($lock.Type) {
+        'npm' {
             # In npm lockfiles (v1/v2/v3) "version" is always the first property after the package key.
+            # Regex search avoids ConvertFrom-Json which is very slow on large lockfiles in PS5.1.
             foreach ($m in [regex]::Matches($content, '"(?:node_modules/)?axios"\s*:\s*\{[^"]*"version"\s*:\s*"([^"]+)"')) {
                 if ($m.Groups[1].Value -in $vulnAxios) { $result.HasVulnerableAxios = $true; $result.VulnerableAxiosVersion = $m.Groups[1].Value }
             }
@@ -40,12 +42,8 @@ function Invoke-LockfileAnalysis {
                     $result.HasMaliciousOpenclaw = $true; $result.MaliciousPackageName = $pkg
                 }
             }
-        } catch { $result.Error = "Failed to parse package-lock.json: $_" }
-
-    } elseif (Test-Path $yarnLock) {
-        $result.LockfileType = 'yarn'; $result.LockfilePath = $yarnLock
-        try {
-            $content = Get-Content $yarnLock -Raw -ErrorAction Stop
+        }
+        'yarn' {
             foreach ($m in [regex]::Matches($content, '(?m)^axios@[^\n]+\n\s+version\s+"([^"]+)"')) {
                 if ($m.Groups[1].Value -in $vulnAxios) { $result.HasVulnerableAxios = $true; $result.VulnerableAxiosVersion = $m.Groups[1].Value }
             }
@@ -58,12 +56,8 @@ function Invoke-LockfileAnalysis {
                     $result.HasMaliciousOpenclaw = $true; $result.MaliciousPackageName = $pkg
                 }
             }
-        } catch { $result.Error = "Failed to parse yarn.lock: $_" }
-
-    } elseif (Test-Path $pnpmLock) {
-        $result.LockfileType = 'pnpm'; $result.LockfilePath = $pnpmLock
-        try {
-            $content = Get-Content $pnpmLock -Raw -ErrorAction Stop
+        }
+        'pnpm' {
             # pnpm-lock.yaml format: "  /axios/1.14.1:" or "  axios@1.14.1:"
             foreach ($m in [regex]::Matches($content, '(?m)^\s+(?:/|)axios[/@]([^\s:]+):')) {
                 if ($m.Groups[1].Value -in $vulnAxios) { $result.HasVulnerableAxios = $true; $result.VulnerableAxiosVersion = $m.Groups[1].Value }
@@ -77,7 +71,7 @@ function Invoke-LockfileAnalysis {
                     $result.HasMaliciousOpenclaw = $true; $result.MaliciousPackageName = $pkg
                 }
             }
-        } catch { $result.Error = "Failed to parse pnpm-lock.yaml: $_" }
+        }
     }
 
     return $result

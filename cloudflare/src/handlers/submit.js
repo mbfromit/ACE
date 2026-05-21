@@ -32,6 +32,15 @@ export async function handleSubmit(request, env, ctx) {
     }
   }
 
+  // Optional campaign discriminator. Older Axios scanners do not send it; we
+  // default to 'axios' to preserve byte-for-byte back-compat. New campaigns
+  // must be added to the whitelist here AND to the prompts registry.
+  const ALLOWED_CAMPAIGNS = new Set(['axios', 'mini-shai-hulud'])
+  const campaign = (formData.get('campaign') || 'axios').toString()
+  if (!ALLOWED_CAMPAIGNS.has(campaign)) {
+    return json({ error: `Unknown campaign: ${campaign}` }, 400)
+  }
+
   const briefFile  = formData.get('brief')
   const reportFile = formData.get('report')
   if (!briefFile || !reportFile) {
@@ -62,8 +71,9 @@ export async function handleSubmit(request, env, ctx) {
     await env.DB.prepare(`
       INSERT INTO submissions
         (id, hostname, username, submitted_at, scan_timestamp, duration, verdict,
-         projects_scanned, vulnerable_count, critical_count, paths_scanned, brief_key, report_key)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         projects_scanned, vulnerable_count, critical_count, paths_scanned,
+         campaign, brief_key, report_key)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id,
       formData.get('hostname'),
@@ -76,6 +86,7 @@ export async function handleSubmit(request, env, ctx) {
       toInt(formData.get('vulnerable_count')),
       toInt(formData.get('critical_count')),
       formData.get('paths_scanned') || null,
+      campaign,
       briefKey,
       reportKey
     ).run()

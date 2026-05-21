@@ -34,6 +34,9 @@ $ErrorActionPreference = 'Continue'
 $RatCatcherVersion = '2.1.0'
 
 $pvt = Join-Path $PSScriptRoot 'Private'
+# Shared helpers are dot-sourced first so check functions can reference them.
+. (Join-Path $pvt 'Shared\New-Finding.ps1')
+. (Join-Path $pvt 'Shared\Get-LockfileText.ps1')
 . (Join-Path $pvt 'Get-NodeProjects.ps1')
 . (Join-Path $pvt 'Invoke-LockfileAnalysis.ps1')
 . (Join-Path $pvt 'Find-ForensicArtifacts.ps1')
@@ -309,7 +312,8 @@ if (-not $NoSubmit) {
         -CriticalCount   $criticalCount `
         -PathsScanned    ($resolvedPaths | ConvertTo-Json -Compress) `
         -BriefPath       $briefingPath `
-        -ReportPath      $reportPath
+        -ReportPath      $reportPath `
+        -Campaign        'axios'
 
     switch ($submitResult.Status) {
         'success'        { Write-Log "[INFO] Scan submitted successfully (ID: $($submitResult.Id))" }
