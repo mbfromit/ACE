@@ -18,7 +18,7 @@ function New-MshScanReport {
         [Parameter(Mandatory)][string]$OutputPath,
         [Parameter(Mandatory)][hashtable]$ScanMetadata,
         [Parameter(Mandatory)]$Iocs,
-        [ValidateSet('CLEAN','REVIEW','COMPROMISED')][string]$Verdict,
+        [ValidateSet('CLEAN','REVIEW','COMPROMISED','INCONCLUSIVE')][string]$Verdict,
         [string]$LogoBase64 = ''
     )
 
@@ -47,6 +47,11 @@ h2{color:#58a6ff;font-size:1rem;letter-spacing:2px;margin-top:28px;border-left:3
 .verdict.compromised{background:rgba(248,81,73,.15);color:#f85149;border:1px solid #f85149}
 .verdict.review{background:rgba(232,168,56,.12);color:#e8a838;border:1px solid #e8a838}
 .verdict.clean{background:rgba(63,185,80,.15);color:#3fb950;border:1px solid #3fb950}
+.verdict.inconclusive{background:rgba(240,136,62,.12);color:#f0883e;border:1px solid #f0883e}
+.envelope{display:grid;grid-template-columns:max-content 1fr;gap:5px 16px;background:#1a1a1a;border:1px solid #222;padding:12px 18px;margin:8px 0 14px;font-size:0.78rem}
+.envelope .meta-k{color:#6e7681;letter-spacing:1px}
+.envelope .meta-v{color:#c9d1d9;font-family:monospace;word-break:break-all}
+.envelope .warn{color:#e8a838}
 .section{background:#1a1a1a;border:1px solid #222;padding:16px 20px;margin:14px 0;border-radius:4px}
 .finding{background:#0d1117;border:1px solid #21303f;padding:12px 14px;margin:10px 0;border-radius:3px}
 .finding.critical{border-left:3px solid #f85149}
@@ -82,6 +87,68 @@ h2{color:#58a6ff;font-size:1rem;letter-spacing:2px;margin-top:28px;border-left:3
     $verdictHtml = "<span class='verdict $($verdict.ToLower())'>$verdict</span>"
     $iocSrcCls = if ($Iocs.source -eq 'fallback-hardcoded') { 'fallback' } else { '' }
     $iocLine = "IOC bundle: source=$($Iocs.source), updated_at=$($Iocs.updated_at), fetched_at=$($Iocs.fetched_at)"
+
+    # ── Scan envelope (Phase 1 discovery diagnostics) ─────────────────────────
+    # Renders only when the entry script provides ScanMetadata.DiscoveryDiag.
+    # Older callers (Pester fixtures, legacy invocations) won't supply it, so
+    # the envelope silently omits — the report still renders correctly.
+    $envelopeHtml = ''
+    if ($ScanMetadata.ContainsKey('DiscoveryDiag') -and $ScanMetadata.DiscoveryDiag) {
+        $d = $ScanMetadata.DiscoveryDiag
+        $rootsArr     = @($d.Roots)
+        $gitCount     = @($rootsArr | Where-Object { $_.Type -in 'git_repo','both' }).Count
+        $nodeCount    = @($rootsArr | Where-Object { $_.Type -in 'node_project','both' }).Count
+        $scanned      = @($d.ScannedDrives)
+        $partial      = @($d.PartialDrives)
+        $skippedDrv   = @($d.SkippedDrives)
+        $sc           = $d.SkippedCounts
+
+        # Roots list (first 50, with "+ N more" if elided)
+        $rootCap = 50
+        $rootPaths = @($rootsArr | ForEach-Object { $_.Path })
+        $rootsDisplay = if ($rootPaths.Count -le $rootCap) {
+            ($rootPaths | ForEach-Object { _Encode $_ }) -join ', '
+        } else {
+            (($rootPaths | Select-Object -First $rootCap | ForEach-Object { _Encode $_ }) -join ', ') +
+            ", + $($rootPaths.Count - $rootCap) more"
+        }
+        if ($rootPaths.Count -eq 0) { $rootsDisplay = '<span class="warn">(none — INCONCLUSIVE territory)</span>' }
+
+        $partialDisplay = if ($partial.Count -gt 0) {
+            '<span class="warn">' +
+            (($partial | ForEach-Object { "$($_.Drive) ($(_Encode $_.Reason), $($_.ElapsedSec)s)" }) -join '; ') +
+            '</span>'
+        } else { 'none' }
+
+        $skippedDrvDisplay = if ($skippedDrv.Count -gt 0) {
+            (($skippedDrv | ForEach-Object { "$($_.Drive) ($(_Encode $_.Reason))" }) -join '; ')
+        } else { 'none' }
+
+        $skippedPathsDisplay = ("deny-list {0}; reparse-points {1}; cloud-placeholders {2}; depth-cap {3}; access-denied {4}" -f `
+            $sc.DenyList, $sc.ReparsePoints, $sc.CloudPlaceholders, $sc.DepthCap, $sc.AccessDenied)
+
+        $overallNote = if ($d.HitOverallCap) { ' <span class="warn">[overall cap fired]</span>' } else { '' }
+        $fallbackNote = if ($ScanMetadata.ContainsKey('FallbackUsed') -and $ScanMetadata.FallbackUsed) {
+            '<span class="warn">[legacy USERPROFILE walk used as fallback]</span>'
+        } else { '' }
+
+        $svRow = if ($ScanMetadata.ContainsKey('ScannerVersion')) {
+            "<span class='meta-k'>SCANNER VERSION</span><span class='meta-v'>$(_Encode $ScanMetadata.ScannerVersion)</span>"
+        } else { '' }
+
+        $envelopeHtml = @"
+<div class='envelope'>
+$svRow
+<span class='meta-k'>IOC FEED</span><span class='meta-v'>$(_Encode $Iocs.source) (updated $(_Encode $Iocs.updated_at))</span>
+<span class='meta-k'>SCANNED ROOTS</span><span class='meta-v'>$($rootsArr.Count) total ($gitCount git, $nodeCount node) across $($scanned.Count) drive(s)$overallNote $fallbackNote</span>
+<span class='meta-k'>ROOTS</span><span class='meta-v'>$rootsDisplay</span>
+<span class='meta-k'>PARTIAL-SCAN</span><span class='meta-v'>$partialDisplay</span>
+<span class='meta-k'>SKIPPED DRIVES</span><span class='meta-v'>$skippedDrvDisplay</span>
+<span class='meta-k'>SKIPPED PATHS</span><span class='meta-v'>$skippedPathsDisplay</span>
+<span class='meta-k'>DISCOVERY DURATION</span><span class='meta-v'>$($d.DurationSec)s</span>
+</div>
+"@
+    }
 
     # NOTE: The dashboard's AI verification parser (cloudflare/src/handlers/ai-verify.js
     # extractFindings()) matches `<div class="finding"...>` with DOUBLE quotes.
@@ -133,6 +200,7 @@ h2{color:#58a6ff;font-size:1rem;letter-spacing:2px;margin-top:28px;border-left:3
 <span class='meta-k'>VERDICT</span><span class='meta-v'>$verdictHtml</span>
 <span class='meta-k'>FINDINGS</span><span class='meta-v'>$($Findings.Count) ($crit Critical, $high High)</span>
 </div>
+$envelopeHtml
 <p class='ioc-source $iocSrcCls'>$(_Encode $iocLine)</p>
 <h2>FINDINGS</h2>
 $findingsHtml
