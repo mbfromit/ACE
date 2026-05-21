@@ -59,15 +59,21 @@ function Find-MshDiscoveryRoots {
         [int]$MaxDepth            = 6
     )
 
-    # ── Deny list (case-insensitive folder-name match) ────────────────────────
-    # Folders that cannot host a new project root. Some (node_modules, .git)
-    # the scan WILL probe directly later — we just don't *recurse into them*
-    # looking for markers. That's the whole point: surgical probes, not walks.
-    # Folder-name match only — no substring scanning. The walker descends
-    # toward project roots; once it finds a marker (.git, package.json) it
-    # records the root and stops recursing INTO that root's vendor/cache
-    # subfolders. The deny list is the catalog of those non-descendable names.
-    $denyExact = @(
+    # ── Deny rules (3 mechanisms, case-insensitive folder-name match) ─────────
+    # Why three flavors: a flat name-list overshoots. A repo literally named
+    # 'build' or 'dist' is a real project root we must not skip. A folder
+    # named 'Caches' is fine *unless* it lives directly under 'Library' on
+    # macOS. So we split:
+    #
+    # 1. denyExact         — names that are NEVER a valid project root.
+    # 2. denyConditional   — generic names (build/target/dist/out/vendor)
+    #                        that ARE skipped only when a hallmark sibling
+    #                        proves the parent is the relevant tool's root
+    #                        (e.g. 'build' next to 'build.gradle').
+    # 3. denyChildOfParent — pairs like (Library, Caches) that only deny
+    #                        when the parent name matches too.
+
+    $denyExactList = @(
         # VCS internals — once we see `.git` at a parent we record the parent
         # as a git_repo; descending into `.git/` itself never finds new projects
         '.git', '.svn', '.hg',
@@ -75,21 +81,44 @@ function Find-MshDiscoveryRoots {
         'node_modules', '.pnpm', '.yarn', 'bower_components',
         # Python
         'site-packages', '.venv', 'venv', '__pycache__', '.tox', '.pytest_cache', '.mypy_cache', '.ruff_cache',
-        # JVM / Rust / Go / Ruby / PHP
-        'target', 'build', '.gradle', 'vendor', '.bundle',
-        # iOS / web build
-        'Pods', 'Carthage', 'DerivedData', '.next', '.nuxt', '.svelte-kit', '.parcel-cache', '.turbo', '.cache', 'dist', 'out',
-        # Windows system + per-user caches we never want to recurse into
-        # (token files inside AppData are checked by direct-path helpers, not
-        # by walking AppData)
+        # JVM / web build internals — name-only, never legit project names
+        '.gradle', '.next', '.nuxt', '.svelte-kit', '.parcel-cache', '.turbo', '.cache', '.bundle',
+        # iOS
+        'Pods', 'Carthage', 'DerivedData',
+        # Windows system. AppData is denied broadly here; supplemental roots
+        # below re-allow %APPDATA%\npm and %LOCALAPPDATA%\npm so globally
+        # installed Node packages are still discoverable via Phase 2.
         'Windows', 'Program Files', 'Program Files (x86)', 'ProgramData', '$Recycle.Bin', 'System Volume Information',
         'WinSxS', 'Installer', 'SoftwareDistribution', 'AppData',
-        # macOS system + per-user caches (token files in ~/.aws etc. are
-        # checked by direct-path helpers; we don't walk Library)
-        'System', 'Applications', 'private', 'Library', '.Trash'
+        # macOS system. Library is NOT here — see denyChildOfParent for the
+        # narrower per-subfolder rules.
+        'System', 'Applications', 'private', '.Trash'
     )
     $denySet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($n in $denyExact) { [void]$denySet.Add($n) }
+    foreach ($n in $denyExactList) { [void]$denySet.Add($n) }
+
+    # Conditional: name -> array of hallmark sibling filenames. Deny only if
+    # at least one hallmark sibling exists at the parent. When no hallmark is
+    # present, we descend — better a slow scan than a missed project root.
+    $denyConditional = @{
+        'target' = @('Cargo.toml', 'pom.xml', 'build.gradle', 'build.gradle.kts')
+        'build'  = @('build.gradle', 'build.gradle.kts', 'gradlew', 'gradlew.bat', 'pom.xml', 'CMakeLists.txt')
+        'dist'   = @('package.json')
+        'out'    = @('package.json', 'pyproject.toml')
+        'vendor' = @('go.mod', 'Gemfile', 'composer.json')
+    }
+
+    # Parent-context: deny <Child> only when the parent directory is named
+    # <Parent>. Lets us skip ~/Library/Caches without also denying a folder
+    # named Caches that happens to be a project root somewhere else.
+    $denyChildOfParent = @(
+        @{ Parent = 'Library'; Child = 'Caches'           }
+        @{ Parent = 'Library'; Child = 'Containers'       }
+        @{ Parent = 'Library'; Child = 'Group Containers' }
+        @{ Parent = 'Library'; Child = 'Logs'             }
+        @{ Parent = 'Library'; Child = 'Metadata'         }
+        @{ Parent = 'Library'; Child = 'Saved Application State' }
+    )
 
     # ── Diagnostics accumulator ───────────────────────────────────────────────
     $diag = [ordered]@{
@@ -150,6 +179,20 @@ function Find-MshDiscoveryRoots {
                 }
                 $startRoots.Add(@{ Path = $root; Drive = $letter }) | Out-Null
             }
+            # Supplemental roots: AppData is broadly denied above, but the npm
+            # global-install prefix lives inside it. If we don't queue these
+            # explicitly as starting roots, a worm-infected globally-installed
+            # package's <root>/node_modules/<pkg>/bundle.js is invisible to
+            # Phase 2. Each supplemental root bypasses parent deny rules but
+            # still respects the child deny rules during its own walk.
+            $supplemental = @()
+            if ($env:APPDATA)      { $supplemental += (Join-Path $env:APPDATA      'npm') }
+            if ($env:LOCALAPPDATA) { $supplemental += (Join-Path $env:LOCALAPPDATA 'npm') }
+            foreach ($sp in $supplemental) {
+                if ($sp -and (Test-Path -LiteralPath $sp)) {
+                    $startRoots.Add(@{ Path = $sp; Drive = '(appdata-npm)' }) | Out-Null
+                }
+            }
         }
         elseif ($IsMacOS) {
             $candidates = @($HOME, '/opt', '/srv')
@@ -204,8 +247,34 @@ function Find-MshDiscoveryRoots {
     }
 
     function Test-MshDenied {
-        param([string]$name)
-        return $denySet.Contains($name)
+        param(
+            [string]$childName,
+            [string]$parentPath,
+            [string]$parentName
+        )
+
+        # Tier 1 — unconditional name deny
+        if ($denySet.Contains($childName)) { return $true }
+
+        # Tier 2 — parent-context pair (e.g. Library/Caches but not random Caches)
+        foreach ($pair in $denyChildOfParent) {
+            if ($pair.Parent -eq $parentName -and $pair.Child -eq $childName) {
+                return $true
+            }
+        }
+
+        # Tier 3 — conditional generic name (e.g. 'build' next to build.gradle).
+        # We check siblings at the parent for a hallmark file. If any hallmark
+        # is present, the child is treated as a vendored/build dir and denied.
+        # Otherwise the child gets descended into.
+        if ($denyConditional.ContainsKey($childName)) {
+            foreach ($hallmark in $denyConditional[$childName]) {
+                $hp = Join-Path $parentPath $hallmark
+                if (Test-Path -LiteralPath $hp) { return $true }
+            }
+        }
+
+        return $false
     }
 
     # ── Walk each starting root ───────────────────────────────────────────────
@@ -297,9 +366,10 @@ function Find-MshDiscoveryRoots {
                 $diag.SkippedCounts.AccessDenied++; continue
             } catch { continue }
 
+            $parentName = $dirInfo.Name
             foreach ($sub in $subs) {
                 try {
-                    if (Test-MshDenied -name $sub.Name) {
+                    if (Test-MshDenied -childName $sub.Name -parentPath $curPath -parentName $parentName) {
                         $diag.SkippedCounts.DenyList++
                         continue
                     }

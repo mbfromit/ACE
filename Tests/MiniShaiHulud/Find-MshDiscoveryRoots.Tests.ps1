@@ -95,6 +95,99 @@ Describe 'Find-MshDiscoveryRoots' {
         }
     }
 
+    Context 'conditional deny — generic names require hallmark sibling' {
+
+        It "DESCENDS into a folder named 'build' when no JVM hallmark sibling exists" {
+            # Regression: previously 'build' was unconditionally denied, so a
+            # project literally named 'build' was invisible to discovery.
+            $proj = Join-Path $script:sandbox 'build'
+            New-Item -Path $proj -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $proj 'package.json') -Value '{}' -Encoding utf8
+
+            $r = Find-MshDiscoveryRoots -Path @($script:sandbox)
+            @($r.Roots).Path | Should -Contain $proj
+        }
+
+        It "DENIES descent into 'build' when a build.gradle sibling proves it's a JVM build dir" {
+            $java = Join-Path $script:sandbox 'javaproj'
+            New-Item -Path $java -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $java 'build.gradle') -Value '' -Encoding utf8
+            $vendoredBuild = Join-Path $java 'build'
+            New-Item -Path $vendoredBuild -ItemType Directory -Force | Out-Null
+            $bogus = Join-Path $vendoredBuild 'fake-output'
+            New-Item -Path $bogus -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $bogus 'package.json') -Value '{}' -Encoding utf8
+
+            $r = Find-MshDiscoveryRoots -Path @($script:sandbox)
+            @($r.Roots).Path | Should -Not -Contain $bogus
+        }
+
+        It "DENIES descent into 'dist' when sibling package.json proves it's a Node build output" {
+            $node = Join-Path $script:sandbox 'nodeproj'
+            New-Item -Path $node -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $node 'package.json') -Value '{}' -Encoding utf8
+            $dist = Join-Path $node 'dist'
+            New-Item -Path $dist -ItemType Directory -Force | Out-Null
+            $bogus = Join-Path $dist 'pkg'
+            New-Item -Path $bogus -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $bogus 'package.json') -Value '{}' -Encoding utf8
+
+            $r = Find-MshDiscoveryRoots -Path @($script:sandbox)
+            @($r.Roots).Path | Should -Contain $node
+            @($r.Roots).Path | Should -Not -Contain $bogus
+        }
+
+        It "DENIES descent into 'vendor' when go.mod sibling proves it's the Go vendor dir" {
+            $go = Join-Path $script:sandbox 'goproj'
+            New-Item -Path $go -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $go 'go.mod') -Value 'module example.com/x' -Encoding utf8
+            $vendor = Join-Path $go 'vendor'
+            New-Item -Path $vendor -ItemType Directory -Force | Out-Null
+            $bogus = Join-Path $vendor 'whatever'
+            New-Item -Path $bogus -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $bogus 'package.json') -Value '{}' -Encoding utf8
+
+            $r = Find-MshDiscoveryRoots -Path @($script:sandbox)
+            @($r.Roots).Path | Should -Not -Contain $bogus
+        }
+    }
+
+    Context 'parent-context deny — only when both parent and child match' {
+
+        It "denies Library/Caches but allows Library/Mobile Documents" {
+            # Library is NOT in denyExact; only specific children when parent=Library
+            $lib = Join-Path $script:sandbox 'Library'
+            New-Item -Path $lib -ItemType Directory -Force | Out-Null
+
+            # Should be DENIED (Library + Caches pair)
+            $cachesProj = Join-Path (Join-Path $lib 'Caches') 'badproj'
+            New-Item -Path $cachesProj -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $cachesProj 'package.json') -Value '{}' -Encoding utf8
+
+            # Should be ALLOWED (Library + Mobile Documents is not in denyChildOfParent)
+            $iCloudProj = Join-Path (Join-Path $lib 'Mobile Documents') 'okproj'
+            New-Item -Path $iCloudProj -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $iCloudProj 'package.json') -Value '{}' -Encoding utf8
+
+            $r = Find-MshDiscoveryRoots -Path @($script:sandbox)
+            @($r.Roots).Path | Should -Not -Contain $cachesProj
+            @($r.Roots).Path | Should -Contain $iCloudProj
+        }
+
+        It "allows a folder named 'Caches' that is NOT under a Library parent" {
+            # Edge case: a project root happens to live inside a folder named
+            # 'Caches'. As long as its parent isn't named 'Library', we descend.
+            $weirdParent = Join-Path $script:sandbox 'myapp'
+            $caches      = Join-Path $weirdParent 'Caches'  # parent 'myapp', not 'Library'
+            $proj        = Join-Path $caches      'realcode'
+            New-Item -Path $proj -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $proj 'package.json') -Value '{}' -Encoding utf8
+
+            $r = Find-MshDiscoveryRoots -Path @($script:sandbox)
+            @($r.Roots).Path | Should -Contain $proj
+        }
+    }
+
     Context 'bounding' {
 
         It 'respects MaxDepth' {
