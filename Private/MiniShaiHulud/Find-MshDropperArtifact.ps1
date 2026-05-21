@@ -27,17 +27,21 @@ function Find-MshDropperArtifact {
 
     $findings = @()
 
-    $names = @($Iocs.PSObject.Properties['dropper_filenames']) |
-             ForEach-Object { $_.Value } | Where-Object { $_ }
-    if (-not $names -or $names.Count -eq 0) { $names = @('processor.sh') }
+    $names = @()
+    if ($Iocs.PSObject.Properties['dropper_filenames']) {
+        $names = @($Iocs.dropper_filenames | Where-Object { $_ })
+    }
+    if ($names.Count -eq 0) { $names = @('processor.sh') }
 
     # Build the set of locations to probe. The IOC feed's
     # `dropper_drop_paths` may include the literal token '<node_project>'
     # which we expand per project root. Tokens '<tmp>' and '<home>' map to
     # the OS-appropriate temp dir and user home.
-    $rawPaths = @($Iocs.PSObject.Properties['dropper_drop_paths']) |
-                ForEach-Object { $_.Value } | Where-Object { $_ }
-    if (-not $rawPaths -or $rawPaths.Count -eq 0) {
+    $rawPaths = @()
+    if ($Iocs.PSObject.Properties['dropper_drop_paths']) {
+        $rawPaths = @($Iocs.dropper_drop_paths | Where-Object { $_ })
+    }
+    if ($rawPaths.Count -eq 0) {
         $rawPaths = @('<tmp>', '<home>', '<node_project>')
     }
 

@@ -30,9 +30,11 @@ function Find-MshTrufflehogDrop {
 
     $findings = @()
 
-    $rawPaths = @($Iocs.PSObject.Properties['trufflehog_drop_paths']) |
-                ForEach-Object { $_.Value } | Where-Object { $_ }
-    if (-not $rawPaths -or $rawPaths.Count -eq 0) {
+    $rawPaths = @()
+    if ($Iocs.PSObject.Properties['trufflehog_drop_paths']) {
+        $rawPaths = @($Iocs.trufflehog_drop_paths | Where-Object { $_ })
+    }
+    if ($rawPaths.Count -eq 0) {
         $rawPaths = @(
             '/tmp/trufflehog'
             '~/Downloads/trufflehog'
@@ -42,10 +44,10 @@ function Find-MshTrufflehogDrop {
 
     # Parse attack window once
     $attackStart = $null; $attackEnd = $null
-    if ($Iocs.attack_window_start) {
+    if ($Iocs.PSObject.Properties['attack_window_start'] -and $Iocs.attack_window_start) {
         try { $attackStart = [datetime]::Parse($Iocs.attack_window_start).ToUniversalTime() } catch { }
     }
-    if ($Iocs.attack_window_end) {
+    if ($Iocs.PSObject.Properties['attack_window_end'] -and $Iocs.attack_window_end) {
         try { $attackEnd = [datetime]::Parse($Iocs.attack_window_end).ToUniversalTime() } catch { }
     }
 

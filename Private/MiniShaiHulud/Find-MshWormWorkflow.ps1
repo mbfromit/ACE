@@ -26,10 +26,11 @@ function Find-MshWormWorkflow {
 
     $findings = @()
 
-    $names = @($Iocs.PSObject.Properties['workflow_filenames']) |
-             ForEach-Object { $_.Value } |
-             Where-Object { $_ }
-    if (-not $names -or $names.Count -eq 0) {
+    $names = @()
+    if ($Iocs.PSObject.Properties['workflow_filenames']) {
+        $names = @($Iocs.workflow_filenames | Where-Object { $_ })
+    }
+    if ($names.Count -eq 0) {
         $names = @('shai-hulud-workflow.yml', 'shai-hulud.yml', 'shai-hulud.yaml')
     }
 

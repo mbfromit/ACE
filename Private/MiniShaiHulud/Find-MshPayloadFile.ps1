@@ -37,17 +37,21 @@ function Find-MshPayloadFile {
     $findings = @()
     if (-not $MatchedPackages -or $MatchedPackages.Count -eq 0) { return $findings }
 
-    $payloadNames = @($Iocs.PSObject.Properties['payload_filenames']) |
-                    ForEach-Object { $_.Value } | Where-Object { $_ }
-    if (-not $payloadNames -or $payloadNames.Count -eq 0) {
+    $payloadNames = @()
+    if ($Iocs.PSObject.Properties['payload_filenames']) {
+        $payloadNames = @($Iocs.payload_filenames | Where-Object { $_ })
+    }
+    if ($payloadNames.Count -eq 0) {
         $payloadNames = @('bundle.js')
     }
 
     $hashList = @()
-    try {
+    if ($Iocs.PSObject.Properties['payload_hashes']) {
         $hashes = $Iocs.payload_hashes
-        if ($hashes -and $hashes.sha256) { $hashList = @($hashes.sha256) }
-    } catch { }
+        if ($hashes -and $hashes.PSObject.Properties['sha256']) {
+            $hashList = @($hashes.sha256 | Where-Object { $_ })
+        }
+    }
 
     $nodeModules = Join-Path $NodeProjectRoot 'node_modules'
     if (-not (Test-Path -LiteralPath $nodeModules)) { return $findings }
