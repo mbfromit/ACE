@@ -16,3 +16,9 @@ ratcatcher-db-backup-*.sql
 
 # Claude Code local settings — per-machine, not shared
 .claude/
+
+# Stray clones / copies — the canonical tree is the repo root, period.
+# These showed up across multiple sessions as untracked artifacts. If you
+# need a working copy, use git worktree, not a sub-folder clone.
+/RatCatcher/
+/cloudflare/RatCatcher/

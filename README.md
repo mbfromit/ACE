@@ -159,6 +159,28 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 Reports land in `C:\Logs` (Windows) or `/tmp` (macOS/Linux). Submissions appear on the dashboard at https://mbfromit.com/ratcatcher/dashboard under the **Mini Shai-Hulud** campaign tab.
 
+### macOS quick start (zsh)
+
+```bash
+# 1. Install PowerShell 7 (one time)
+brew install powershell
+
+# 2. Clone + cd
+git clone https://github.com/mbfromit/RatCatcher.git
+cd RatCatcher
+
+# 3. Smoke-test the Pester suite (optional, ~30s)
+pwsh -Command "Invoke-Pester -Path Tests/ -Output Detailed"
+
+# 4. Run the scanner. Default scan roots: ~/dev ~/src ~/code ~/projects ~/Documents.
+#    -NoSubmit if you just want the report locally without uploading.
+pwsh ./Invoke-MiniShaiHulud.ps1
+```
+
+Reports land in `/tmp/MiniShaiHulud-Report-*.html` and `/tmp/MiniShaiHulud-Brief-*.html`. Open them with `open /tmp/MiniShaiHulud-Brief-*.html`.
+
+**Mac-specific check coverage:** Bun runtime (`~/.bun/bin/bun` + `~/.bun/install/cache`), token atime (`~/.npmrc`, `~/.aws/credentials`, `~/.ssh/id_*`, `~/.config/gh/hosts.yml`), pnpm store (`~/Library/pnpm/store`), Yarn Berry cache (`~/.yarn/berry/cache`), DNS via `dscacheutil` + active TCP via `lsof -i`, zsh extended history (`~/.zsh_history`). APFS atime is unreliable when the volume mounts with relatime semantics — the scanner flags TokenTouch findings as corroborating evidence only, not standalone proof.
+
 ### Prerequisites
 
 - **PowerShell 7.0+** is required (cross-platform). Built-in Windows PowerShell 5.1 is not supported.

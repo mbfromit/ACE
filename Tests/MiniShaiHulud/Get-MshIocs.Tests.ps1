@@ -14,20 +14,20 @@ Describe 'Get-MshIocs — fallback chain' {
                 Content = '{"version":1,"packages":[{"name":"mbt","versions":["1.2.48"]}],"campaign":"mini-shai-hulud","updated_at":"2026-05-01T00:00:00Z"}'
             }
         }
-        $iocs = Get-MshIocs -CachePath (Join-Path $env:TEMP "rc-test-$(New-Guid).json")
+        $iocs = Get-MshIocs -CachePath (Join-Path ([IO.Path]::GetTempPath()) "rc-test-$(New-Guid).json")
         $iocs.source | Should -Be 'network'
         $iocs.packages.Count | Should -BeGreaterThan 0
     }
 
     It 'falls back to bundled when network fails' {
         Mock Invoke-WebRequest { throw 'network down' }
-        $iocs = Get-MshIocs -BundledPath $script:bundled -CachePath (Join-Path $env:TEMP "rc-test-$(New-Guid).json")
+        $iocs = Get-MshIocs -BundledPath $script:bundled -CachePath (Join-Path ([IO.Path]::GetTempPath()) "rc-test-$(New-Guid).json")
         $iocs.source | Should -Be 'bundled'
         $iocs.packages.Count | Should -BeGreaterThan 0
     }
 
     It 'falls back to cache when network and bundled both fail' {
-        $cache = Join-Path $env:TEMP "rc-test-$(New-Guid).json"
+        $cache = Join-Path ([IO.Path]::GetTempPath()) "rc-test-$(New-Guid).json"
         '{"version":1,"packages":[{"name":"mbt","versions":["1.2.48"]}],"campaign":"mini-shai-hulud","updated_at":"2026-04-01T00:00:00Z"}' |
             Out-File -FilePath $cache -Encoding utf8
         Mock Invoke-WebRequest { throw 'network down' }

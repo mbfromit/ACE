@@ -49,7 +49,9 @@ Describe 'Find-MshBadPackages' {
     It 'fires Check 4 even when lockfile is clean but installed package matches' {
         Set-Content -Path (Join-Path $script:proj 'package.json') -Value '{ "dependencies": { "mbt":"^2.0.0" } }' -Encoding utf8
         Set-Content -Path (Join-Path $script:proj 'package-lock.json') -Value '{ "lockfileVersion":3, "packages": { "node_modules/mbt": { "version":"2.0.0" } } }' -Encoding utf8
-        $instDir = Join-Path $script:proj 'node_modules\mbt'
+        # Two Join-Paths — literal 'node_modules\mbt' becomes a single
+        # filename on Unix because backslash isn't a separator there.
+        $instDir = Join-Path (Join-Path $script:proj 'node_modules') 'mbt'
         New-Item -Path $instDir -ItemType Directory -Force | Out-Null
         Set-Content -Path (Join-Path $instDir 'package.json') -Value '{ "name":"mbt","version":"1.2.48" }' -Encoding utf8
         $r = @(Find-MshBadPackages -ProjectPath $script:proj -Iocs $script:iocs)

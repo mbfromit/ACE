@@ -3,7 +3,10 @@ BeforeAll {
     $attackStart = [datetime]::Parse('2026-03-31T00:21:00Z').ToLocalTime()
 }
 
-Describe 'Find-PersistenceArtifacts' {
+# Axios Find-PersistenceArtifacts is Windows-only by design (Get-ScheduledTask,
+# HKCU:/HKLM: registry hives). Mocks reference cmdlets and drives that don't
+# exist in non-Windows PowerShell sessions, so Pester can't bind them. Skip.
+Describe 'Find-PersistenceArtifacts' -Skip:(-not $IsWindows) {
     Context 'suspicious scheduled task registered after attack' {
         BeforeAll {
             Mock Get-ScheduledTask {
