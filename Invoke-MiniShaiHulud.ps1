@@ -45,6 +45,15 @@
     Override the IOC feed URL (default is the production dashboard endpoint).
 .PARAMETER NoIocNetwork
     Skip the network IOC fetch — use the bundled JSON instead.
+.PARAMETER SkipNpmAudit
+    Skip the per-project `npm audit` triage step. By default the scanner
+    runs `npm audit --json` against every project that produced an IOC
+    match and uses the result to mark wildcard-scope findings (e.g.
+    @tanstack/*) as Cleared when the npm advisory database doesn't flag
+    them. Pass this switch to skip the audit (saves wall-clock on big
+    monorepos at the cost of dropping all wildcard findings to
+    Inconclusive). The verdict-envelope work in
+    docs/PLAN-wormcatcher-actionable-verdicts.md is the source of truth.
 .EXAMPLE
     ./Invoke-MiniShaiHulud.ps1
     Scan default dev folders and submit results.
@@ -68,7 +77,8 @@ param(
     [int]$Threads                    = 4,
     [string]$IocApiUrl               = 'https://mbfromit.com/ratcatcher/api/iocs/mini-shai-hulud',
     [switch]$NoIocNetwork,
-    [string]$SubmitApiUrl            = 'https://mbfromit.com/ratcatcher/submit'
+    [string]$SubmitApiUrl            = 'https://mbfromit.com/ratcatcher/submit',
+    [switch]$SkipNpmAudit
 )
 
 Set-StrictMode -Version Latest
@@ -84,6 +94,7 @@ $pvt = Join-Path $PSScriptRoot 'Private'
 $msh = Join-Path $pvt 'MiniShaiHulud'
 . (Join-Path $msh 'Get-MshIocs.ps1')
 . (Join-Path $msh 'Find-MshDiscoveryRoots.ps1')
+. (Join-Path $msh 'Invoke-MshNpmAudit.ps1')
 . (Join-Path $msh 'Find-MshBadPackages.ps1')
 . (Join-Path $msh 'Find-MshSuspiciousScripts.ps1')
 . (Join-Path $msh 'Find-MshBunRuntime.ps1')
@@ -210,7 +221,7 @@ function Add-Findings { param($Result)
 Write-Log '[2-4/16] Bad-package detection (lockfile / manifest / installed)...'
 foreach ($proj in $projects) {
     try {
-        Add-Findings (Find-MshBadPackages -ProjectPath $proj.ProjectPath -Iocs $iocs)
+        Add-Findings (Find-MshBadPackages -ProjectPath $proj.ProjectPath -Iocs $iocs -SkipNpmAudit:$SkipNpmAudit)
     } catch { Write-Log "BadPackages check failed for $($proj.ProjectPath): $_" 'WARN' }
 }
 
@@ -290,15 +301,34 @@ $criticalCount = @($allFindings | Where-Object { $_.Severity -eq 'Critical' }).C
 $highCount     = @($allFindings | Where-Object { $_.Severity -eq 'High' }).Count
 $vulnCount     = @($allFindings | Where-Object { $_.Type -like 'BadPackage*' }).Count
 
-# Four-state local verdict. INCONCLUSIVE is the critical new state that
-# closes today's false-CLEAN failure mode: when Phase 1 discovery saw no
-# Node projects AND no git repos AND the user did NOT supply -Path, we
-# can't honestly say "this machine is clean" — we didn't scan anything.
+# Per-finding ScannerVerdict counts drive the post-triage rollup (plan
+# Phase E). Defensive: older finding-emitters that don't set the field
+# get counted nowhere — they keep their old severity-based weight via
+# the Critical/High counts above, which is the safe behavior.
+$findingsWithVerdict = @($allFindings | Where-Object {
+    $_.PSObject.Properties.Name -contains 'ScannerVerdict' -and $_.ScannerVerdict
+})
+$confirmedCount    = @($findingsWithVerdict | Where-Object { $_.ScannerVerdict -eq 'Confirmed'    }).Count
+$clearedCount      = @($findingsWithVerdict | Where-Object { $_.ScannerVerdict -eq 'Cleared'      }).Count
+$inconclusiveCount = @($findingsWithVerdict | Where-Object { $_.ScannerVerdict -eq 'Inconclusive' }).Count
+$actionRequiredCount = @($findingsWithVerdict | Where-Object {
+    $_.PSObject.Properties.Name -contains 'ActionRequired' -and $_.ActionRequired
+}).Count
+
+# Four-state local verdict. Plan Phase E rules:
+#   COMPROMISED  — any Confirmed finding (post-triage match)
+#   REVIEW       — no Confirmed, but ≥1 Inconclusive with an ActionRequired
+#                  (manager needs to chase someone to resolve it)
+#   INCONCLUSIVE — Phase 1 discovery saw zero roots AND no -Path
+#                  (we didn't scan anything; cannot honestly say CLEAN)
+#   CLEAN        — everything else: zero Confirmed, no actionable
+#                  Inconclusive; whatever findings exist are Cleared or
+#                  non-blocking Inconclusive
 $noRootsDiscovered = ($rootCount -eq 0 -and $fallbackPathsUsed.Count -eq 0 -and -not $userSuppliedPath)
 
-$localVerdict = if ($criticalCount -gt 0) {
+$localVerdict = if ($confirmedCount -gt 0) {
     'COMPROMISED'
-} elseif ($highCount -gt 0) {
+} elseif ($actionRequiredCount -gt 0) {
     'REVIEW'
 } elseif ($noRootsDiscovered) {
     'INCONCLUSIVE'
@@ -307,33 +337,47 @@ $localVerdict = if ($criticalCount -gt 0) {
 }
 
 # Server-side verdict stays two-state for back-compat with the dashboard's
-# existing SQL. Any non-trivial finding goes to the dashboard as COMPROMISED so
-# the manager workflow and AI verification engage.
-$submitVerdict = if ($criticalCount -gt 0 -or $highCount -gt 0) { 'COMPROMISED' } else { 'CLEAN' }
+# existing SQL. Now keyed off Confirmed-or-actionable instead of raw
+# Critical/High, so wildcard noise that npm audit cleared no longer
+# triggers the dashboard's manager workflow.
+$submitVerdict = if ($confirmedCount -gt 0 -or $actionRequiredCount -gt 0) { 'COMPROMISED' } else { 'CLEAN' }
 
 $logLevel = switch ($localVerdict) { 'COMPROMISED' {'ERROR'} 'REVIEW' {'WARN'} 'INCONCLUSIVE' {'WARN'} default {'OK'} }
-Write-Log "Verdict: $localVerdict (findings: $($allFindings.Count); Critical: $criticalCount; High: $highCount)" $logLevel
+Write-Log ("Verdict: $localVerdict (findings: $($allFindings.Count); " +
+           "Confirmed: $confirmedCount; Cleared: $clearedCount; " +
+           "Inconclusive: $inconclusiveCount; Action items: $actionRequiredCount)") $logLevel
 if ($localVerdict -eq 'REVIEW') {
-    Write-Log "  Note: REVIEW = High findings but no IOC match. Most likely corroborating evidence (token-file atime, recent npm cache activity)." 'INFO'
-    Write-Log "  Open the brief to inspect; pair with Critical findings to elevate." 'INFO'
+    Write-Log "  Note: REVIEW = no confirmed worm artifacts, but $actionRequiredCount finding(s) need user/manager action to resolve (e.g. install npm, fix lockfile, ask user about TruffleHog at unusual path)." 'INFO'
+    Write-Log "  Open the brief's Action Items section — each card has a copy-paste instruction to forward." 'INFO'
 }
 if ($localVerdict -eq 'INCONCLUSIVE') {
     Write-Log "  Note: INCONCLUSIVE = Phase 1 discovery saw no Node projects or git repos. We cannot honestly declare this machine clean — we didn't scan anything." 'WARN'
     Write-Log "  Retry with -Path pointing at where code lives on this box (e.g. -Path 'C:\Atriora','D:\Repos')." 'INFO'
+}
+if ($localVerdict -eq 'CLEAN' -and $clearedCount -gt 0) {
+    Write-Log "  Note: CLEAN reflects post-triage. $clearedCount watchlist match(es) cleared by npm advisory database." 'INFO'
 }
 
 # ── Render reports ────────────────────────────────────────────────────────────
 $endTime = Get-Date
 $durationS = "{0:N1}s" -f ($endTime - $startTime).TotalSeconds
 $meta = @{
-    Hostname        = $hn
-    Username        = $user
-    Timestamp       = $startUtc
-    Duration        = $durationS
-    ScannerVersion  = $ScannerVersion
-    DiscoveryDiag   = $discoveryResult
-    FallbackUsed    = ($fallbackPathsUsed.Count -gt 0)
-    UserSuppliedPath = $userSuppliedPath
+    Hostname            = $hn
+    Username            = $user
+    Timestamp           = $startUtc
+    Duration            = $durationS
+    ScannerVersion      = $ScannerVersion
+    DiscoveryDiag       = $discoveryResult
+    FallbackUsed        = ($fallbackPathsUsed.Count -gt 0)
+    UserSuppliedPath    = $userSuppliedPath
+    # Per-finding-verdict rollup — consumed by report templates in commit #6
+    # to drive the post-triage headline ("3 confirmed Tier-1, 62 cleared by
+    # npm audit" instead of "65 Critical, 31 High").
+    ConfirmedCount      = $confirmedCount
+    ClearedCount        = $clearedCount
+    InconclusiveCount   = $inconclusiveCount
+    ActionRequiredCount = $actionRequiredCount
+    NpmAuditSkipped     = [bool]$SkipNpmAudit
 }
 Write-Log 'Generating technical report and executive briefing...'
 $techPath  = New-MshScanReport    -Findings $allFindings -OutputPath $OutputPath -ScanMetadata $meta -Iocs $iocs -Verdict $localVerdict
@@ -371,8 +415,9 @@ if (-not $NoSubmit -and $submitPassword) {
 }
 
 # ── Exit ──────────────────────────────────────────────────────────────────────
-# Exit 1 ONLY on COMPROMISED (Critical findings). REVIEW returns 0 so it does
-# not break CI gates — High findings without IOC matches are corroborating
-# evidence, not an incident. The runbook documents this contract.
+# Exit 1 ONLY on COMPROMISED (≥1 ScannerVerdict=Confirmed finding). REVIEW
+# returns 0 so it does not break CI gates — Inconclusive findings with
+# ActionRequired are about user/manager workflow, not a confirmed incident.
+# The runbook documents this contract.
 Write-Log "Total duration: $durationS"
 if ($localVerdict -eq 'COMPROMISED') { exit 1 } else { exit 0 }
