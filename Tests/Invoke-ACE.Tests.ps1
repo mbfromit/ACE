@@ -1,10 +1,10 @@
 BeforeAll {
-    $script    = "$PSScriptRoot/../Invoke-RatCatcher.ps1"
+    $script    = "$PSScriptRoot/../Invoke-ACE.ps1"
     $fixRoot   = "$PSScriptRoot/Fixtures"
     $outDir    = Join-Path $TestDrive 'output'
 }
 
-Describe 'Invoke-RatCatcher integration' {
+Describe 'Invoke-ACE integration' {
     It 'runs without throwing' {
         { & $script -Path $fixRoot -OutputPath $outDir } | Should -Not -Throw
     }

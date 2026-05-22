@@ -10,7 +10,7 @@
 
 The Access Compliance Engine (ACE) is a **PowerShell forensic scanner suite** built to detect evidence of npm supply-chain compromises — initially the March 31, 2026 Axios NPM supply chain attack, now extended to the Mini Shai-Hulud worm campaign (via the sibling WormCatcher scanner). It consists of two main parts:
 
-1. **The Scanner** — a PowerShell script (`Invoke-RatCatcher.ps1` for the Axios campaign; `Invoke-MiniShaiHulud.ps1` for the Mini Shai-Hulud campaign) that employees run on their machines. Each runs a series of checks, generates HTML reports, and submits results to the dashboard.
+1. **The Scanner** — a PowerShell script (`Invoke-ACE.ps1` for the Axios campaign — formerly `Invoke-RatCatcher.ps1`, which is retained as a backward-compat shim; `Invoke-MiniShaiHulud.ps1` for the Mini Shai-Hulud campaign) that employees run on their machines. Each runs a series of checks, generates HTML reports, and submits results to the dashboard.
 2. **The Dashboard** — a Cloudflare Worker that receives scan submissions, stores them, runs AI verdict analysis, and provides a web UI for the security team to review results.
 
 The live dashboard is at: **https://mbfromit.com/ratcatcher/dashboard**
@@ -22,7 +22,8 @@ The live dashboard is at: **https://mbfromit.com/ratcatcher/dashboard**
 ### Source Code
 ```
 /Users/mberry/Documents/ClaudeProjects/RatCatcher/
-├── Invoke-RatCatcher.ps1           # Main scanner entry point (distributed to employees)
+├── Invoke-ACE.ps1                  # Main Axios scanner entry point (distributed to employees)
+├── Invoke-RatCatcher.ps1           # Backward-compat shim -> Invoke-ACE.ps1
 ├── Private/                        # Scanner modules (10 check functions)
 │   ├── Find-ForensicArtifacts.ps1
 │   ├── Find-PersistenceArtifacts.ps1
@@ -258,7 +259,7 @@ If starting a fresh session, give Claude Code this prompt to get it up to speed 
 > **Source code:** `/Users/mberry/Documents/ClaudeProjects/RatCatcher/`
 >
 > **Key files:**
-> - `Invoke-RatCatcher.ps1` — PowerShell scanner (runs on employee machines)
+> - `Invoke-ACE.ps1` — PowerShell scanner (runs on employee machines); `Invoke-RatCatcher.ps1` is a backward-compat shim that forwards to it
 > - `cloudflare/src/handlers/api.js` — dashboard API (stats, submissions, report serving)
 > - `cloudflare/src/handlers/dashboard.js` — dashboard HTML/JS frontend
 > - `cloudflare/src/handlers/ai-verify.js` — Gemma AI verdict logic

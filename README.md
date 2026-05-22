@@ -4,7 +4,7 @@
 
 An **AI-powered, cross-platform** PowerShell forensic scanner suite for npm supply-chain compromise. The suite ships two scanners that submit to a shared dashboard:
 
-- **`Invoke-RatCatcher.ps1`** — the **March 31, 2026 Axios NPM supply chain attack** (malicious `plain-crypto-js` dependency in `axios` v1.14.1 / v0.30.4). Ten checks covering the full compromise kill chain.
+- **`Invoke-ACE.ps1`** — the **March 31, 2026 Axios NPM supply chain attack** (malicious `plain-crypto-js` dependency in `axios` v1.14.1 / v0.30.4). Ten checks covering the full compromise kill chain. (A backward-compat shim `Invoke-RatCatcher.ps1` is retained for scheduled tasks / shortcuts that still reference the old name.)
 - **`Invoke-MiniShaiHulud.ps1`** (**MSH**) — the **Mini Shai-Hulud npm supply-chain worm** (TeamPCP, April–May 2026 onward). **Sixteen workstation checks** — twelve corroborating signals plus four Tier-1 on-disk IOC probes (worm CI-persistence file, payload, dropper, TruffleHog drop). Phase 1 of the scan does a bounded discovery walk across fixed + removable drives, so code that lives outside the user's home dir (e.g. `C:\Atriora`, `D:\Repos`, a USB dev drive) is no longer invisible. See [MSH usage below](#running-msh-mini-shai-hulud) and the [MSH runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md). Reports findings only — does **not** certify a machine virus-free (the campaign is polymorphic and lives primarily in CI runners + stolen npm tokens, not on workstations).
 
 Both scanners produce detailed reports and **automatically evaluate every finding using Gemma 4 AI** to distinguish real threats from false positives. The dashboard segments submissions by campaign (Axios vs Mini Shai-Hulud) via a top-level selector, with independent filtering, stats, and AI prompting per campaign.
@@ -91,10 +91,10 @@ On **macOS** and **Linux**, execution policy is not required. Simply run with `p
 
 ```powershell
 # Windows
-.\Invoke-RatCatcher.ps1
+.\Invoke-ACE.ps1
 
 # macOS / Linux
-pwsh ./Invoke-RatCatcher.ps1
+pwsh ./Invoke-ACE.ps1
 ```
 
 The script auto-detects the platform and displays which folders will be scanned.
@@ -103,25 +103,25 @@ The script auto-detects the platform and displays which folders will be scanned.
 
 ```powershell
 # Windows
-.\Invoke-RatCatcher.ps1 -Path C:\Dev
+.\Invoke-ACE.ps1 -Path C:\Dev
 
 # macOS
-pwsh ./Invoke-RatCatcher.ps1 -Path ~/Projects
+pwsh ./Invoke-ACE.ps1 -Path ~/Projects
 
 # Linux
-pwsh ./Invoke-RatCatcher.ps1 -Path /home/user
+pwsh ./Invoke-ACE.ps1 -Path /home/user
 ```
 
 ### Scan multiple folders
 
 ```powershell
-.\Invoke-RatCatcher.ps1 -Path C:\Dev, C:\Projects, C:\Users\you\source
+.\Invoke-ACE.ps1 -Path C:\Dev, C:\Projects, C:\Users\you\source
 ```
 
 ### Save reports to a custom location
 
 ```powershell
-.\Invoke-RatCatcher.ps1 -OutputPath C:\IR\Reports
+.\Invoke-ACE.ps1 -OutputPath C:\IR\Reports
 ```
 
 ### Submission password
@@ -134,7 +134,7 @@ Reports are always saved locally to `C:\Logs` on Windows or `/tmp` on macOS/Linu
 
 ## Running MSH (Mini Shai-Hulud)
 
-**MSH** (`Invoke-MiniShaiHulud.ps1`) is the sibling scanner for the **Mini Shai-Hulud** npm supply-chain worm. It is a separate script from the Axios scanner (`Invoke-RatCatcher.ps1`) — different IOCs, different TTPs, different campaign tag in the dashboard. Both scanners can be run on the same machine in either order.
+**MSH** (`Invoke-MiniShaiHulud.ps1`) is the sibling scanner for the **Mini Shai-Hulud** npm supply-chain worm. It is a separate script from the Axios scanner (`Invoke-ACE.ps1`) — different IOCs, different TTPs, different campaign tag in the dashboard. Both scanners can be run on the same machine in either order.
 
 > **Honest scope:** MSH reports the findings produced by sixteen checks at the time it ran. It does **not** certify the machine is virus-free, and makes no 100%-certainty claim. Mini Shai-Hulud is polymorphic and primarily lives in CI runners + stolen npm tokens — pair the scan with token rotation and a CI workflow audit per the [runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md).
 
@@ -380,13 +380,13 @@ winget install Microsoft.PowerShell
 Then run the scanner with `pwsh` instead of `powershell`:
 
 ```powershell
-pwsh .\Invoke-RatCatcher.ps1
+pwsh .\Invoke-ACE.ps1
 ```
 
 You can also adjust the thread count:
 
 ```powershell
-pwsh .\Invoke-RatCatcher.ps1 -Threads 8
+pwsh .\Invoke-ACE.ps1 -Threads 8
 ```
 
 ---
