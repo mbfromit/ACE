@@ -150,8 +150,20 @@ function Get-MshBadPackageVerdictText {
                 ActionTarget         = 'User'
             }
         }
+        'not-applicable' {
+            # Operator-skipped audit (-SkipNpmAudit flag). Every Inconclusive
+            # should carry an action so the manager workflow doesn't silently
+            # accumulate unfiled triage debt. Target Ops because the operator
+            # who ran the scan is the one who can lift the flag.
+            return [PSCustomObject]@{
+                ScannerVerdict       = 'Inconclusive'
+                ScannerVerdictReason = "npm audit was skipped for this scan (-SkipNpmAudit); cannot verify $PackageName@$PackageVersion against npm advisory database."
+                ActionRequired       = "Re-run the scanner WITHOUT -SkipNpmAudit to triage this finding against the npm advisory database. If the audit cost is unacceptable, document the operator decision in the manager's notes."
+                ActionTarget         = 'Ops'
+            }
+        }
         default {
-            # audit-failed, not-applicable, or anything new — neutral.
+            # audit-failed or anything new — neutral.
             return [PSCustomObject]@{
                 ScannerVerdict       = 'Inconclusive'
                 ScannerVerdictReason = "Could not run npm audit on this project (AuditResult: $AuditResult). Verdict pending manual review."

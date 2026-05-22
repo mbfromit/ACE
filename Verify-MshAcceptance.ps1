@@ -301,6 +301,90 @@ if ($canSymlink) {
     Add-Result 'Symlink loop: scan completes (reparse-point skip)' 'SKIPPED' 'cannot create symlink (needs admin / Dev Mode on Win)'
 }
 
+# ── Test 9a: Wildcard match + -SkipNpmAudit → Inconclusive + High severity ──
+# Plant a @tanstack/* wildcard match (the dev-dashboard E2E false-positive
+# scenario). With -SkipNpmAudit, the scanner cannot triage the match, so it
+# must surface as ScannerVerdict=Inconclusive with severity High (NOT
+# Critical) and an ActionRequired pointing the operator at npm audit.
+$t9a = Join-Path $SandboxRoot 't9a-wildcard'
+New-Item -Path $t9a -ItemType Directory -Force | Out-Null
+Set-Content -Path (Join-Path $t9a 'package.json') -Value '{"name":"app","dependencies":{"@tanstack/react-query":"5.0.0"}}' -Encoding utf8
+Set-Content -Path (Join-Path $t9a 'package-lock.json') -Value '{ "lockfileVersion":3, "packages": { "node_modules/@tanstack/react-query": { "version":"5.0.0" } } }' -Encoding utf8
+
+$r9a = Invoke-Scan -TestRoot $t9a -ExtraArgs @{ Path = @($t9a); SkipNpmAudit = $true }
+$hasInconclusiveChip = $r9a.TechContent -match 'f-verdict inconclusive'
+$mentionsAudit       = $r9a.TechContent -match 'ACTION REQUIRED'
+# Severity should be High (downgrade for unverified wildcard); NOT Critical.
+$rqRow = if ($r9a.TechContent -match '(?s)<div class="finding\s+([a-z]+)"[^>]*>[^<]*<span class="f-type">BadPackage-Lockfile') { $matches[1] } else { 'unknown' }
+if ($hasInconclusiveChip -and $mentionsAudit -and $rqRow -eq 'high') {
+    Add-Result 'Wildcard + SkipNpmAudit -> Inconclusive + High + ActionRequired' 'PASS' "verdict=$($r9a.Verdict), bad-pkg severity=$rqRow"
+} else {
+    Add-Result 'Wildcard + SkipNpmAudit -> Inconclusive + High + ActionRequired' 'FAIL' "chip=$hasInconclusiveChip, action=$mentionsAudit, severity=$rqRow"
+}
+
+# ── Test 9b: Tier-1 plant + wildcard noise → post-triage headline correct ──
+# THE acceptance test for this branch. Without this fix, scanner reported
+# "COMPROMISED -- 65 Critical, 31 High" on a box with only 3 real plants
+# (62 of those 65 were wildcard false positives). With the verdict
+# envelope, headline must reflect post-triage reality.
+$t9b = Join-Path $SandboxRoot 't9b-mixed'
+$repo9b = Join-Path $t9b 'fake-repo'
+New-Item -Path (Join-Path $repo9b '.git') -ItemType Directory -Force | Out-Null
+New-Item -Path (Join-Path $repo9b '.github/workflows') -ItemType Directory -Force | Out-Null
+Set-Content -Path (Join-Path $repo9b '.github/workflows/shai-hulud-workflow.yml') -Value 'name: shai-hulud' -Encoding utf8
+# Plus 2 wildcard noise matches at sibling projects.
+foreach ($n in @('app-a','app-b')) {
+    $p = Join-Path $t9b $n
+    New-Item -Path $p -ItemType Directory -Force | Out-Null
+    Set-Content -Path (Join-Path $p 'package.json') -Value "{`"name`":`"$n`",`"dependencies`":{`"@tanstack/react-query`":`"5.0.0`"}}" -Encoding utf8
+    Set-Content -Path (Join-Path $p 'package-lock.json') -Value '{ "lockfileVersion":3, "packages": { "node_modules/@tanstack/react-query": { "version":"5.0.0" } } }' -Encoding utf8
+}
+
+$r9b = Invoke-Scan -TestRoot $t9b -ExtraArgs @{ Path = @($t9b); SkipNpmAudit = $true }
+
+# Tech report headline must show "1 confirmed Tier-1" AND surface the
+# wildcard noise as needing action (since we skipped audit). Headline
+# block has class="headline".
+$techHasHeadline   = $r9b.TechContent -match 'POST-TRIAGE'
+$techHasConfirmed  = $r9b.TechContent -match '1 confirmed Tier-1'
+# Brief must have an Action Items section (since wildcards routed to
+# Inconclusive with operator-skip ActionRequired).
+$briefHasActions   = $r9b.BriefContent -match 'ACTION ITEMS'
+# And the brief headline must NOT lead with raw severity counts only.
+$briefHeadlineGood = $r9b.BriefContent -match 'COMPROMISED.* 1 confirmed Tier-1'
+
+if ($r9b.Verdict -eq 'COMPROMISED' -and $techHasHeadline -and $techHasConfirmed -and $briefHasActions -and $briefHeadlineGood) {
+    Add-Result 'Tier-1 + wildcard noise -> post-triage headline correct' 'PASS' "verdict=$($r9b.Verdict)"
+} else {
+    Add-Result 'Tier-1 + wildcard noise -> post-triage headline correct' 'FAIL' "verdict=$($r9b.Verdict); headline=$techHasHeadline confirmed=$techHasConfirmed brief-actions=$briefHasActions brief-headline=$briefHeadlineGood"
+}
+
+# ── Test 9c: Action Items aggregation groups N findings under one card ──────
+# Multiple wildcard findings that share the same ActionRequired text should
+# collapse into a single Action Items card showing the count.
+$t9c = Join-Path $SandboxRoot 't9c-aggregation'
+New-Item -Path $t9c -ItemType Directory -Force | Out-Null
+foreach ($n in @('p1','p2','p3','p4')) {
+    $p = Join-Path $t9c $n
+    New-Item -Path $p -ItemType Directory -Force | Out-Null
+    Set-Content -Path (Join-Path $p 'package.json') -Value "{`"name`":`"$n`",`"dependencies`":{`"@tanstack/react-query`":`"5.0.0`"}}" -Encoding utf8
+    Set-Content -Path (Join-Path $p 'package-lock.json') -Value '{ "lockfileVersion":3, "packages": { "node_modules/@tanstack/react-query": { "version":"5.0.0" } } }' -Encoding utf8
+}
+
+$r9c = Invoke-Scan -TestRoot $t9c -ExtraArgs @{ Path = @($t9c); SkipNpmAudit = $true }
+# Each of 4 projects produces 2 findings (BadPackage-Lockfile +
+# BadPackage-Manifest) so total = 8. All share the same operator-skip
+# ActionRequired text, so they collapse into a SINGLE card with
+# count=8. (Match the actual <div class='action-card'> markup, not the
+# CSS rule that also contains the literal text.)
+$cardDivCount   = ([regex]::Matches($r9c.BriefContent, "<div class='action-card'>")).Count
+$cardSaysEight  = $r9c.BriefContent -match '8 findings blocked'
+if ($cardDivCount -eq 1 -and $cardSaysEight) {
+    Add-Result 'Action Items aggregation: 8 findings -> 1 card with count=8' 'PASS' "cards=$cardDivCount"
+} else {
+    Add-Result 'Action Items aggregation: 8 findings -> 1 card with count=8' 'FAIL' "cards=$cardDivCount, says-eight=$cardSaysEight"
+}
+
 # ── Test 10: Wall-clock — 50 fake repos + 200 package.json ───────────────────
 if (-not $SkipPerformance) {
     $t10 = Join-Path $SandboxRoot 't10-perf'
