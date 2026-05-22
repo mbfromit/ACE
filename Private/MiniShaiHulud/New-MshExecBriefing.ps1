@@ -307,8 +307,8 @@ $($cards -join "`n")
 
     $html = @"
 <!DOCTYPE html>
-<html><head><meta charset='utf-8'><title>Mini Shai-Hulud — Executive Briefing — $(_Encode $hostname)</title>$css</head><body>
-<h1>EXECUTIVE BRIEFING — MINI SHAI-HULUD</h1>
+<html><head><meta charset='utf-8'><title>ACE — Mini Shai-Hulud — Executive Briefing — $(_Encode $hostname)</title>$css</head><body>
+<h1>ACCESS COMPLIANCE ENGINE — EXECUTIVE BRIEFING — MINI SHAI-HULUD</h1>
 <div class='meta'>
 <span class='meta-k'>HOSTNAME</span><span>$(_Encode $hostname)</span>
 <span class='meta-k'>USERNAME</span><span>$(_Encode $ScanMetadata.Username)</span>

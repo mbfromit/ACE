@@ -875,7 +875,7 @@ export async function handleExport(request, env) {
     return new Response(csv, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': 'attachment; filename="ratcatcher-export.csv"'
+        'Content-Disposition': 'attachment; filename="ace-export.csv"'
       }
     })
   } catch {
