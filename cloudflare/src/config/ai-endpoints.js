@@ -8,8 +8,11 @@
  *
  * Each entry is a base URL prefix. assertApprovedEndpoint() admits a
  * configured AI_TUNNEL_URL only if it startsWith() one of these entries.
- * Match is prefix-only, exact-protocol -- "https://x.com" does NOT
- * cover "https://x.com.attacker.test/".
+ *
+ * IMPORTANT: prefix matching is footgun-prone. An entry "https://x.com"
+ * WILL match "https://x.com.attacker.test/" because startsWith is
+ * lexical, not URL-structural. Always include a trailing slash or path
+ * in your entry: "https://x.com/" rejects the attacker variant.
  *
  * Initial state: empty (fail-closed). Re-enabling the AI verifier
  * requires adding the destination here AND setting the secret. Both
