@@ -310,16 +310,37 @@ For the full remediation playbook (revoke npm tokens, rotate cloud creds, audit 
 
 ### Verdict labels and exit codes
 
+WormCatcher emits a **post-triage** verdict — every finding goes through an authoritative triage step (npm advisory database for BadPackage findings; static Tier-1 rules for worm artifacts) before the headline is computed. A wildcard IOC match (e.g. `@tanstack/*`) that npm audit clears doesn't drive the verdict — it's logged as a "Cleared" watchlist match and reported in the post-triage rollup ("3 confirmed Tier-1, 62 cleared by npm audit").
+
 | Verdict | Meaning | Exit code |
 |---|---|---|
-| `CLEAN` | No findings across the 16 checks, AND at least one project / git repo was discovered to scan | `0` |
-| `REVIEW` | High-severity findings but no IOC matches — corroborating evidence (token-file atime, recent npm cache activity). Glance at the report, do not panic. | `0` |
+| `CLEAN` | Zero findings with `ScannerVerdict=Confirmed`. Watchlist matches (if any) all cleared by npm advisory database. **Note:** still does not certify the machine is virus-free — the campaign is polymorphic. | `0` |
+| `REVIEW` | Zero Confirmed findings, but one or more `ScannerVerdict=Inconclusive` findings have an `ActionRequired` (e.g. user needs to install npm; user needs to confirm a TruffleHog binary they may have placed at an unusual path). Manager forwards the per-finding instructions to affected users and re-runs the scanner. | `0` |
 | `INCONCLUSIVE` | Phase 1 discovery saw **no Node projects or git repos** on this workstation. The scanner had nothing to check. **This is NOT a clean result.** Retry with explicit `-Path` pointing at where code lives (e.g. `-Path 'C:\Atriora','D:\Repos'`), or verify the box really has no code clones. | `0` |
-| `COMPROMISED` | At least one Critical finding — known Mini Shai-Hulud IOC matched. Treat as an incident, follow the runbook mitigation steps. | `1` |
+| `COMPROMISED` | One or more findings have `ScannerVerdict=Confirmed`: a Tier-1 worm artifact on disk (workflow file, payload bundle, dropper, TruffleHog drop inside the attack window), or an IOC-matched package that npm advisory database also flags. Treat as an incident; follow the runbook mitigation steps. | `1` |
 
-`REVIEW` and `INCONCLUSIVE` return exit 0 so they do not break CI gates. Only `COMPROMISED` (Critical IOC match) is non-zero. The dashboard still receives `COMPROMISED` for `REVIEW`-state scans so manager workflow and AI verification engage — the four-state label is purely local.
+`REVIEW` and `INCONCLUSIVE` return exit 0 so they do not break CI gates. Only `COMPROMISED` is non-zero. The dashboard receives `COMPROMISED` for `REVIEW`-state scans so manager workflow and AI verification engage — the four-state label is purely local.
 
-`INCONCLUSIVE` is the verdict that closes today's false-CLEAN failure mode: if your code lives on an excluded drive, inside a folder we couldn't enumerate (permissions, depth cap, cloud-sync placeholders), or you ran the scanner on a host that genuinely has no code clones, the prior behavior would have silently reported CLEAN. Now it tells you.
+`INCONCLUSIVE` is the verdict that closes the false-CLEAN failure mode where code on an excluded drive, inside an unenumerable folder, or on a host with no code clones used to silently report CLEAN. Now it tells you.
+
+### Manager workflow (post-triage verdicts and Action Items)
+
+Every BadPackage and Tier-1 finding now carries a verdict envelope:
+
+- **ScannerVerdict**: `Confirmed` | `Cleared` | `Inconclusive`
+- **ScannerVerdictReason**: plain-English citation of the authority (e.g. *"npm advisory database flags @tanstack/react-query@5.0.0 as compromised"* or *"Wildcard IOC matched, but npm advisory database reports no advisories for this exact version. Treating as false positive."*)
+- **ActionRequired**: when the scanner could not conclude, a copy-paste instruction the manager forwards to the affected user (e.g. *"Install Node.js + npm from https://nodejs.org/en/download/, then re-run WormCatcher"* when npm wasn't installed on the workstation; *"Did you install TruffleHog at `<path>` yourself? If no, escalate"* when a TruffleHog binary sits at an unusual path but mtime predates the campaign).
+- **ActionTarget**: `User` | `Manager` | `UserAndManager`
+
+The executive brief renders an **Action Items** section grouping findings by unique ActionRequired text. The manager copy-pastes each card's instruction to the affected user, the user complies, and the scanner re-runs to resolve.
+
+### `-SkipNpmAudit` (operator opt-out)
+
+By default WormCatcher runs `npm audit --json` against every project that produced an IOC match (cached per package name; one CLI call per unique package per project). On a typical dev box with 8–10 IOC-matched projects this adds 30–90 seconds. Pass `-SkipNpmAudit` to skip the audit entirely — all wildcard findings then route to `Inconclusive` and the brief's Action Items section lists *"Re-run without `-SkipNpmAudit`"* as the required action. Useful for big monorepos where audit cost outweighs the noise reduction, or when running offline.
+
+```powershell
+.\Invoke-MiniShaiHulud.ps1 -SkipNpmAudit
+```
 
 ### Verifying WormCatcher locally (synthetic IOCs)
 
