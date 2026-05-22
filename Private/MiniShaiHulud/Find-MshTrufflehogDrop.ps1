@@ -79,15 +79,35 @@ function Find-MshTrufflehogDrop {
                 'TruffleHog binary at an unusual drop path; mtime outside attack window — review whether developer intentionally placed it here'
             }
 
+            # Verdict envelope: in-window matches are Confirmed (Tier-1 IR
+            # action). Out-of-window matches drop to Inconclusive — the
+            # binary could be a legitimate dev install at an unusual path,
+            # so the manager asks the user before escalating.
+            if ($inWindow) {
+                $verdict       = 'Confirmed'
+                $verdictReason = "Tier-1 worm artifact — TruffleHog binary at unusual drop path '$candidate', mtime inside the published campaign attack window."
+                $actionReq     = "Worm-specific artifact present on disk. IMMEDIATELY isolate this workstation from the network. Follow incident response in [WormCatcher runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md): rotate all credentials, audit CI workflows, check git history for unauthorized commits."
+                $actionTarget  = 'UserAndManager'
+            } else {
+                $verdict       = 'Inconclusive'
+                $verdictReason = "TruffleHog binary at unusual drop path '$candidate' but mtime predates the published campaign attack window. Could be a legitimate developer install at a non-default location."
+                $actionReq     = "TruffleHog binary at unusual path but mtime predates the campaign attack window. Could be a legitimate developer install at a non-default location. Ask user: 'Did you install TruffleHog at ``$candidate`` yourself?' If no, escalate."
+                $actionTarget  = 'Manager'
+            }
+
             $findings += New-Finding `
                 -Type 'TrufflehogDrop' `
                 -Severity $severity `
                 -Description ("TruffleHog binary present at $candidate — $reason.") `
                 -Path $candidate `
                 -Extra @{
-                    SizeBytes      = $fi.Length
-                    LastWriteTime  = $fi.LastWriteTime
-                    InAttackWindow = $inWindow
+                    SizeBytes            = $fi.Length
+                    LastWriteTime        = $fi.LastWriteTime
+                    InAttackWindow       = $inWindow
+                    ScannerVerdict       = $verdict
+                    ScannerVerdictReason = $verdictReason
+                    ActionRequired       = $actionReq
+                    ActionTarget         = $actionTarget
                 }
         }
     }

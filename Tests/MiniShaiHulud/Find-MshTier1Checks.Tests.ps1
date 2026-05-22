@@ -53,6 +53,16 @@ Describe 'Find-MshWormWorkflow (Check 13)' {
         $r[0].Excerpt | Should -Match 'shai-hulud'
     }
 
+    It 'emits ScannerVerdict=Confirmed + UserAndManager isolation ActionRequired' {
+        $wf = Join-Path $script:wfDir 'shai-hulud-workflow.yml'
+        Set-Content -Path $wf -Value 'name: shai-hulud' -Encoding utf8
+        $r = @(Find-MshWormWorkflow -GitRoot $script:repo -Iocs $script:iocs)
+        $r[0].ScannerVerdict | Should -Be 'Confirmed'
+        $r[0].ActionTarget   | Should -Be 'UserAndManager'
+        $r[0].ActionRequired | Should -Match 'isolate this workstation'
+        $r[0].ActionRequired | Should -Match 'runbook'
+    }
+
     It "also catches the shai-hulud.yml variant" {
         Set-Content -Path (Join-Path $script:wfDir 'shai-hulud.yml') -Value 'name: x' -Encoding utf8
         $r = @(Find-MshWormWorkflow -GitRoot $script:repo -Iocs $script:iocs)
@@ -100,6 +110,9 @@ Describe 'Find-MshPayloadFile (Check 14)' {
         $r[0].Type | Should -Be 'WormPayloadFile'
         $r[0].PackageName | Should -Be 'mbt'
         $r[0].PayloadName | Should -Be 'bundle.js'
+        $r[0].ScannerVerdict | Should -Be 'Confirmed'
+        $r[0].ActionTarget   | Should -Be 'UserAndManager'
+        $r[0].ActionRequired | Should -Match 'isolate this workstation'
     }
 
     It 'handles scoped packages (@scope/name) correctly' {
@@ -147,6 +160,9 @@ Describe 'Find-MshDropperArtifact (Check 15)' {
         $r[0].Severity | Should -Be 'Critical'
         $r[0].Type | Should -Be 'WormDropperArtifact'
         $r[0].Path | Should -Be $dropper
+        $r[0].ScannerVerdict | Should -Be 'Confirmed'
+        $r[0].ActionTarget   | Should -Be 'UserAndManager'
+        $r[0].ActionRequired | Should -Match 'isolate this workstation'
     }
 }
 
@@ -173,7 +189,7 @@ Describe 'Find-MshTrufflehogDrop (Check 16)' {
         $r.Count | Should -Be 0
     }
 
-    It 'fires CRITICAL when binary mtime falls inside attack window' {
+    It 'fires CRITICAL + Confirmed when binary mtime falls inside attack window' {
         Set-Content -Path $script:dropPath -Value 'fake binary' -Encoding utf8
         # Force the mtime to land squarely in the window
         (Get-Item -LiteralPath $script:dropPath).LastWriteTime = [datetime]::Parse('2026-05-01T12:00:00Z').ToLocalTime()
@@ -188,9 +204,12 @@ Describe 'Find-MshTrufflehogDrop (Check 16)' {
         $r[0].Severity | Should -Be 'Critical'
         $r[0].Type | Should -Be 'TrufflehogDrop'
         $r[0].InAttackWindow | Should -BeTrue
+        $r[0].ScannerVerdict | Should -Be 'Confirmed'
+        $r[0].ActionTarget   | Should -Be 'UserAndManager'
+        $r[0].ActionRequired | Should -Match 'isolate this workstation'
     }
 
-    It 'fires HIGH when binary mtime is BEFORE the attack window starts' {
+    It 'fires HIGH + Inconclusive when binary mtime is BEFORE the attack window starts' {
         Set-Content -Path $script:dropPath -Value 'fake binary' -Encoding utf8
         # Force mtime well before window start
         (Get-Item -LiteralPath $script:dropPath).LastWriteTime = [datetime]::Parse('2025-01-01T00:00:00Z').ToLocalTime()
@@ -204,5 +223,8 @@ Describe 'Find-MshTrufflehogDrop (Check 16)' {
         $r.Count | Should -Be 1
         $r[0].Severity | Should -Be 'High'
         $r[0].InAttackWindow | Should -BeFalse
+        $r[0].ScannerVerdict | Should -Be 'Inconclusive'
+        $r[0].ActionTarget   | Should -Be 'Manager'
+        $r[0].ActionRequired | Should -Match 'Did you install TruffleHog'
     }
 }

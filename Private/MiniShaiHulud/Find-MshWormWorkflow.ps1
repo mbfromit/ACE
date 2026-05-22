@@ -57,11 +57,15 @@ function Find-MshWormWorkflow {
                           "no legitimate code writes this filename. Confirmed compromise.") `
             -Path $candidate `
             -Extra @{
-                RepoRoot      = $GitRoot
-                Filename      = $n
-                SizeBytes     = if ($fi) { $fi.Length } else { $null }
-                LastWriteTime = if ($fi) { $fi.LastWriteTime } else { $null }
-                Excerpt       = $excerpt
+                RepoRoot             = $GitRoot
+                Filename             = $n
+                SizeBytes            = if ($fi) { $fi.Length } else { $null }
+                LastWriteTime        = if ($fi) { $fi.LastWriteTime } else { $null }
+                Excerpt              = $excerpt
+                ScannerVerdict       = 'Confirmed'
+                ScannerVerdictReason = "Tier-1 worm artifact — no legitimate code writes '$n' under .github/workflows/."
+                ActionRequired       = "Worm-specific artifact present on disk. IMMEDIATELY isolate this workstation from the network. Follow incident response in [WormCatcher runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md): rotate all credentials, audit CI workflows, check git history for unauthorized commits."
+                ActionTarget         = 'UserAndManager'
             }
     }
 

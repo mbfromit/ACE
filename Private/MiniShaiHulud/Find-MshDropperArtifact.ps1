@@ -82,10 +82,14 @@ function Find-MshDropperArtifact {
                               "Confirmed compromise.") `
                 -Path $candidate `
                 -Extra @{
-                    DropLocation  = $dir
-                    Filename      = $n
-                    SizeBytes     = $fi.Length
-                    LastWriteTime = $fi.LastWriteTime
+                    DropLocation         = $dir
+                    Filename             = $n
+                    SizeBytes            = $fi.Length
+                    LastWriteTime        = $fi.LastWriteTime
+                    ScannerVerdict       = 'Confirmed'
+                    ScannerVerdictReason = "Tier-1 worm artifact — dropper script '$n' at '$dir' has no legitimate origin in this location."
+                    ActionRequired       = "Worm-specific artifact present on disk. IMMEDIATELY isolate this workstation from the network. Follow incident response in [WormCatcher runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md): rotate all credentials, audit CI workflows, check git history for unauthorized commits."
+                    ActionTarget         = 'UserAndManager'
                 }
         }
     }

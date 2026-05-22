@@ -88,13 +88,17 @@ function Find-MshPayloadFile {
                               "the malicious package.") `
                 -Path $candidate `
                 -Extra @{
-                    ProjectRoot   = $NodeProjectRoot
-                    PackageName   = $pkg
-                    PayloadName   = $pName
-                    SizeBytes     = $fi.Length
-                    LastWriteTime = $fi.LastWriteTime
-                    Sha256        = $sha
-                    HashConfirmed = $hashConfirmed
+                    ProjectRoot          = $NodeProjectRoot
+                    PackageName          = $pkg
+                    PayloadName          = $pName
+                    SizeBytes            = $fi.Length
+                    LastWriteTime        = $fi.LastWriteTime
+                    Sha256               = $sha
+                    HashConfirmed        = $hashConfirmed
+                    ScannerVerdict       = 'Confirmed'
+                    ScannerVerdictReason = "Tier-1 worm artifact — payload file '$pName' inside an IOC-matched package's installed directory proves the malicious package was downloaded and unpacked."
+                    ActionRequired       = "Worm-specific artifact present on disk. IMMEDIATELY isolate this workstation from the network. Follow incident response in [WormCatcher runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md): rotate all credentials, audit CI workflows, check git history for unauthorized commits."
+                    ActionTarget         = 'UserAndManager'
                 }
         }
     }
