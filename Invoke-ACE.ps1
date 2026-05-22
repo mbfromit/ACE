@@ -117,7 +117,7 @@ $resolvedPaths = [System.Collections.Generic.List[string]]@(
 $detectedOS = if ($IsWindows) { 'Windows' } elseif ($IsMacOS) { 'macOS' } else { 'Linux' }
 Write-Host ''
 Write-Host '================================================================'
-Write-Host "  ACCESS COMPLIANCE ENGINE v$RatCatcherVersion"
+Write-Host "  AXXESS COMPLIANCE ENGINE v$RatCatcherVersion"
 Write-Host "  Platform: $detectedOS | PowerShell $($PSVersionTable.PSVersion)"
 Write-Host '================================================================'
 Write-Host ''

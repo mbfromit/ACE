@@ -5,7 +5,7 @@
 
 .DESCRIPTION
     The Axios scanner entry script was renamed from Invoke-RatCatcher.ps1
-    to Invoke-ACE.ps1 as part of the cosmetic rebrand to Access Compliance
+    to Invoke-ACE.ps1 as part of the cosmetic rebrand to Axxess Compliance
     Engine. This shim preserves the old filename so existing scheduled
     tasks, shortcuts, and operator scripts that invoke the original name
     keep working without modification.

@@ -1,14 +1,14 @@
-# Access Compliance Engine — Ops & Recovery How-To
+# Axxess Compliance Engine — Ops & Recovery How-To
 
 **Last updated:** April 2026  
 **Author:** Mark Berry  
-**Purpose:** Everything you (or Claude Code) need to understand, maintain, and restore the Access Compliance Engine (ACE) from scratch. (Repository name, file paths, env var names, URLs, and code identifiers still use the legacy "RatCatcher" / "ratcatcher" naming — those are paths, not product branding, and are deliberately out of scope for the cosmetic rebrand.)
+**Purpose:** Everything you (or Claude Code) need to understand, maintain, and restore the Axxess Compliance Engine (ACE) from scratch. (Repository name, file paths, env var names, URLs, and code identifiers still use the legacy "RatCatcher" / "ratcatcher" naming — those are paths, not product branding, and are deliberately out of scope for the cosmetic rebrand.)
 
 ---
 
-## What Is the Access Compliance Engine?
+## What Is the Axxess Compliance Engine?
 
-The Access Compliance Engine (ACE) is a **PowerShell forensic scanner suite** built to detect evidence of npm supply-chain compromises — initially the March 31, 2026 Axios NPM supply chain attack, now extended to the Mini Shai-Hulud worm campaign (via the sibling WormCatcher scanner). It consists of two main parts:
+The Axxess Compliance Engine (ACE) is a **PowerShell forensic scanner suite** built to detect evidence of npm supply-chain compromises — initially the March 31, 2026 Axios NPM supply chain attack, now extended to the Mini Shai-Hulud worm campaign (via the sibling WormCatcher scanner). It consists of two main parts:
 
 1. **The Scanner** — a PowerShell script (`Invoke-ACE.ps1` for the Axios campaign — formerly `Invoke-RatCatcher.ps1`, which is retained as a backward-compat shim; `Invoke-MiniShaiHulud.ps1` for the Mini Shai-Hulud campaign) that employees run on their machines. Each runs a series of checks, generates HTML reports, and submits results to the dashboard.
 2. **The Dashboard** — a Cloudflare Worker that receives scan submissions, stores them, runs AI verdict analysis, and provides a web UI for the security team to review results.
@@ -254,7 +254,7 @@ If starting a fresh session, give Claude Code this prompt to get it up to speed 
 
 > **Context for Claude Code:**
 >
-> I need help with the **Access Compliance Engine** (ACE — internal repo / code identifiers still use the legacy "RatCatcher" name), a PowerShell security scanner suite with a Cloudflare Worker dashboard.
+> I need help with the **Axxess Compliance Engine** (ACE — internal repo / code identifiers still use the legacy "RatCatcher" name), a PowerShell security scanner suite with a Cloudflare Worker dashboard.
 >
 > **Source code:** `/Users/mberry/Documents/ClaudeProjects/RatCatcher/`
 >
@@ -315,7 +315,7 @@ cd cloudflare && npx wrangler secret list
 | Date | Event |
 |---|---|
 | March 31, 2026 | Axios NPM supply chain attack — malicious `plain-crypto-js@4.2.1` distributed |
-| April 2026 | Access Compliance Engine (then known as RatCatcher) built and deployed; fleet-wide scanning completed |
+| April 2026 | Axxess Compliance Engine (then known as RatCatcher) built and deployed; fleet-wide scanning completed |
 | April 2026 | AI verification (Gemma 4 31B on AWS) brought online for automated triage |
 | April 13, 2026 | AWS Gemma instance shut down (incident response complete); DB backed up |
 | 3 months later | You are reading this |

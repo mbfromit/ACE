@@ -282,7 +282,7 @@ $svRow
     $html = @"
 <!DOCTYPE html>
 <html><head><meta charset='utf-8'><title>ACE — Mini Shai-Hulud Scan — $(_Encode $hostname)</title>$css</head><body>
-<h1>ACCESS COMPLIANCE ENGINE — MINI SHAI-HULUD SCANNER</h1>
+<h1>AXXESS COMPLIANCE ENGINE — MINI SHAI-HULUD SCANNER</h1>
 <div class='meta'>
 <span class='meta-k'>HOSTNAME</span><span class='meta-v'>$(_Encode $hostname)</span>
 <span class='meta-k'>USERNAME</span><span class='meta-v'>$(_Encode $ScanMetadata.Username)</span>

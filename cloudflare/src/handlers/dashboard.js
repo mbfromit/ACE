@@ -3,7 +3,7 @@ const HTML = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Access Compliance Engine - Manager Dashboard</title>
+<title>Axxess Compliance Engine - Manager Dashboard</title>
 <link rel="icon" type="image/png" href="data:image/png;base64,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">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -214,7 +214,7 @@ tr.remediated .vrd{color:#58a6ff;font-weight:bold}
 <!-- Choice screen -->
 <div id="choice">
   <div class="lbox">
-    <img src="https://raw.githubusercontent.com/mbfromit/RatCatcher/main/assets/images/ACE_Logo_200.png" alt="Access Compliance Engine" style="max-width:200px;display:block;margin:0 auto 10px">
+    <img src="https://raw.githubusercontent.com/mbfromit/RatCatcher/main/assets/images/ACE_Logo_200.png" alt="Axxess Compliance Engine" style="max-width:200px;display:block;margin:0 auto 10px">
     <p class="sub">Endpoint Security Scanner</p>
     <button class="btn" id="goAdmin">&#9881; Admin Dashboard</button>
     <div class="div-or">&mdash; OR &mdash;</div>
@@ -226,7 +226,7 @@ tr.remediated .vrd{color:#58a6ff;font-weight:bold}
 <!-- Admin login -->
 <div id="login">
   <div class="lbox">
-    <img src="https://raw.githubusercontent.com/mbfromit/RatCatcher/main/assets/images/ACE_Logo_200.png" alt="Access Compliance Engine" style="max-width:200px;display:block;margin:0 auto 10px">
+    <img src="https://raw.githubusercontent.com/mbfromit/RatCatcher/main/assets/images/ACE_Logo_200.png" alt="Axxess Compliance Engine" style="max-width:200px;display:block;margin:0 auto 10px">
     <p style="text-align:center;color:#58a6ff;font-size:0.9rem;cursor:pointer;margin-bottom:28px" onclick="document.getElementById('wn-overlay').classList.add('open')"><span style="text-decoration:underline">Read What's New</span> &rarr;</p>
     <form id="lf">
       <input type="password" id="pw" placeholder="Admin password" autocomplete="current-password">
@@ -240,7 +240,7 @@ tr.remediated .vrd{color:#58a6ff;font-weight:bold}
 <!-- User login -->
 <div id="ulogin">
   <div class="lbox">
-    <img src="https://raw.githubusercontent.com/mbfromit/RatCatcher/main/assets/images/ACE_Logo_200.png" alt="Access Compliance Engine" style="max-width:200px;display:block;margin:0 auto 10px">
+    <img src="https://raw.githubusercontent.com/mbfromit/RatCatcher/main/assets/images/ACE_Logo_200.png" alt="Axxess Compliance Engine" style="max-width:200px;display:block;margin:0 auto 10px">
     <p class="sub">View My Scans</p>
     <p class="uhelp">Enter the <strong style="color:#ccc">username</strong> you were logged in as when your ACE scan was run.<br><br>Not sure? Check the top of your scan output, or open Command Prompt and type <code>whoami</code>.</p>
     <form id="ulf">
@@ -253,14 +253,14 @@ tr.remediated .vrd{color:#58a6ff;font-weight:bold}
 </div>
 <div id="dash">
   <div class="hdr">
-    <h1>ACCESS COMPLIANCE ENGINE</h1>
+    <h1>AXXESS COMPLIANCE ENGINE</h1>
     <span class="badge">Manager Dashboard</span>
     <button class="gear" id="admtog" title="Admin Tools">&#9881; Admin</button>
     <button class="gear" id="logout" title="Sign out">&#9211; Logout</button>
   </div>
   <button class="v2-banner" id="v2banner" onclick="openWhatsNew()">
     <span class="v2-tag">v2.0</span>
-    <span class="v2-text">Access Compliance Engine - AI-powered finding verification is now built in. <b>Click to learn what's new.</b></span>
+    <span class="v2-text">Axxess Compliance Engine - AI-powered finding verification is now built in. <b>Click to learn what's new.</b></span>
     <span class="v2-arrow">&rarr;</span>
     <span class="v2-dismiss" onclick="event.stopPropagation();dismissBanner()">Got it</span>
   </button>
@@ -305,7 +305,7 @@ tr.remediated .vrd{color:#58a6ff;font-weight:bold}
 <!-- User dashboard -->
 <div id="udash">
   <div class="hdr">
-    <h1>ACCESS COMPLIANCE ENGINE</h1>
+    <h1>AXXESS COMPLIANCE ENGINE</h1>
     <span class="badge" id="ubadge">My Scans</span>
     <button class="gear" id="ulogout">&#9211; Sign Out</button>
   </div>
@@ -355,7 +355,7 @@ tr.remediated .vrd{color:#58a6ff;font-weight:bold}
   <div class="wn-modal">
     <button class="modal-x" onclick="document.getElementById('wf-overlay').classList.remove('open')">&times;</button>
     <h2>MANAGER WORKFLOW</h2>
-    <p class="wn-dim">Access Compliance Engine - Updated Manager Workflow</p>
+    <p class="wn-dim">Axxess Compliance Engine - Updated Manager Workflow</p>
 
     <h3>How It Works Now</h3>
     <p>When an employee runs an ACE scanner, the results are automatically submitted to the dashboard AND evaluated by AI. By the time you log in, the AI has already analysed every finding.</p>
@@ -436,11 +436,11 @@ tr.remediated .vrd{color:#58a6ff;font-weight:bold}
 <div class="wn-overlay" id="wn-overlay">
   <div class="wn-modal">
     <button class="modal-x" onclick="document.getElementById('wn-overlay').classList.remove('open')">&times;</button>
-    <h2>ACCESS COMPLIANCE ENGINE - WHAT'S NEW</h2>
+    <h2>AXXESS COMPLIANCE ENGINE - WHAT'S NEW</h2>
     <p class="wn-dim">For All Managers and Security Reviewers</p>
 
     <h3>What Changed?</h3>
-    <p>Access Compliance Engine adds <b class="wn-blue">automatic AI-powered finding verification</b>. When a scan is submitted, our AI (Gemma 4) analyses every finding immediately - no manual steps needed. By the time you open the dashboard, the AI has already determined what is a real threat and what is a false positive.</p>
+    <p>Axxess Compliance Engine adds <b class="wn-blue">automatic AI-powered finding verification</b>. When a scan is submitted, our AI (Gemma 4) analyses every finding immediately - no manual steps needed. By the time you open the dashboard, the AI has already determined what is a real threat and what is a false positive.</p>
     <div class="wn-highlight"><b class="wn-green">Everything you already know still works exactly the same.</b> The Technical Reports, the Acknowledge/Confirm Threat buttons, the Copilot Agent workflow, the dashboard filters - nothing has changed or been removed. The AI is purely an addition.</div>
 
     <h3>Automatic AI Evaluation</h3>

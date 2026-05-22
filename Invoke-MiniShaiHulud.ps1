@@ -10,7 +10,7 @@
     attack-window activity; npm cache hits; token-file atime; GitHub
     Actions runner artifacts; recent cache activity; DNS / connection
     residue to exfil hosts; npm publish events in shell history. Posts
-    results to the Access Compliance Engine (ACE) dashboard with campaign='mini-shai-hulud'.
+    results to the Axxess Compliance Engine (ACE) dashboard with campaign='mini-shai-hulud'.
 
     Reports findings only — does NOT certify the machine is virus-free.
     Mini Shai-Hulud is polymorphic and the head of the campaign lives in
@@ -124,7 +124,7 @@ function Write-Log {
     Write-Host "[$ts] $msg" -ForegroundColor $color
 }
 
-Write-Log "Access Compliance Engine - Mini Shai-Hulud scanner v$ScannerVersion" 'OK'
+Write-Log "Axxess Compliance Engine - Mini Shai-Hulud scanner v$ScannerVersion" 'OK'
 Write-Log "Host: $hn  User: $user  OutputPath: $OutputPath"
 
 # ── Password handling ─────────────────────────────────────────────────────────

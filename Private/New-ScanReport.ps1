@@ -278,7 +278,7 @@ Consider full OS re-image if an active C2 connection was found.</div></div>
 "@
 
     # ── Compose page ───────────────────────────────────────────────────────────
-    $logoImg      = if ($LogoBase64) { "<img src=`"data:image/png;base64,$LogoBase64`" class=`"rc-logo`" alt=`"Access Compliance Engine`">" } else { '' }
+    $logoImg      = if ($LogoBase64) { "<img src=`"data:image/png;base64,$LogoBase64`" class=`"rc-logo`" alt=`"Axxess Compliance Engine`">" } else { '' }
     $s1class      = if ($vulnProjects.Count -gt 0) { ' s-danger' } else { '' }
     $s2class      = if ($criticalCount -gt 0)      { ' s-danger' } else { '' }
     $s3class      = if ($verdictClass -eq 'compromised') { ' s-danger' } elseif ($verdictClass -eq 'ai-fp') { ' s-warn' } else { '' }
@@ -375,7 +375,7 @@ strong{color:var(--text-bright)}
 <div class="rc-header">
   $logoImg
   <div class="rc-header-text">
-    <div class="rc-title">ACCESS COMPLIANCE ENGINE</div>
+    <div class="rc-title">AXXESS COMPLIANCE ENGINE</div>
     <div class="rc-subtitle">FORENSIC REPORT &nbsp;&#47;&#47;&nbsp; $(Esc $ScanMetadata.Hostname) &nbsp;&#47;&#47;&nbsp; $(Esc $ScanMetadata.Timestamp)</div>
   </div>
   <div class="rc-hv $verdictClass">$displayVerdict</div>
@@ -417,7 +417,7 @@ strong{color:var(--text-bright)}
 </div>
 
 <div class="rc-footer">
-  ACCESS COMPLIANCE ENGINE v2.1.0 &nbsp;&#47;&#47;&nbsp; $(Esc $ScanMetadata.Hostname) &nbsp;&#47;&#47;&nbsp; Scan completed $(Esc $ScanMetadata.Timestamp)
+  AXXESS COMPLIANCE ENGINE v2.1.0 &nbsp;&#47;&#47;&nbsp; $(Esc $ScanMetadata.Hostname) &nbsp;&#47;&#47;&nbsp; Scan completed $(Esc $ScanMetadata.Timestamp)
 </div>
 </body>
 </html>

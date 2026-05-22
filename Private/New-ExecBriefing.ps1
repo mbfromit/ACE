@@ -152,7 +152,7 @@ $c2warning
 "@
 
     # ── Logo & verdict icon ─────────────────────────────────────────────────────
-    $logoImg     = if ($LogoBase64) { "<img src=`"data:image/png;base64,$LogoBase64`" class=`"rc-logo`" alt=`"Access Compliance Engine`">" } else { '' }
+    $logoImg     = if ($LogoBase64) { "<img src=`"data:image/png;base64,$LogoBase64`" class=`"rc-logo`" alt=`"Axxess Compliance Engine`">" } else { '' }
     $verdictIcon = switch ($verdictClass) {
         'compromised' { '&#9888;' }
         'ai-fp'       { '&#126;' }
@@ -238,7 +238,7 @@ strong{color:var(--text-bright)}p{margin-bottom:6px}
 <div class="rc-header">
   $logoImg
   <div class="rc-header-text">
-    <div class="rc-title">ACCESS COMPLIANCE ENGINE</div>
+    <div class="rc-title">AXXESS COMPLIANCE ENGINE</div>
     <div class="rc-subtitle">EXECUTIVE SECURITY BRIEFING &nbsp;&#47;&#47;&nbsp; $(Esc $ScanMetadata.Hostname) &nbsp;&#47;&#47;&nbsp; $(Esc $ScanMetadata.Timestamp)</div>
   </div>
   <div class="rc-hv $verdictClass">$verdictLabel</div>
@@ -282,7 +282,7 @@ strong{color:var(--text-bright)}p{margin-bottom:6px}
 </div>
 
 <div class="rc-footer">
-  ACCESS COMPLIANCE ENGINE v2.1.0 &nbsp;&#47;&#47;&nbsp; $(Esc $ScanMetadata.Hostname) &nbsp;&#47;&#47;&nbsp; Prepared $(Esc $ScanMetadata.Timestamp)
+  AXXESS COMPLIANCE ENGINE v2.1.0 &nbsp;&#47;&#47;&nbsp; $(Esc $ScanMetadata.Hostname) &nbsp;&#47;&#47;&nbsp; Prepared $(Esc $ScanMetadata.Timestamp)
 </div>
 </body>
 </html>
