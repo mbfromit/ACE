@@ -117,7 +117,7 @@ $resolvedPaths = [System.Collections.Generic.List[string]]@(
 $detectedOS = if ($IsWindows) { 'Windows' } elseif ($IsMacOS) { 'macOS' } else { 'Linux' }
 Write-Host ''
 Write-Host '================================================================'
-Write-Host "  RATCATCHER v$RatCatcherVersion"
+Write-Host "  ACCESS COMPLIANCE ENGINE v$RatCatcherVersion"
 Write-Host "  Platform: $detectedOS | PowerShell $($PSVersionTable.PSVersion)"
 Write-Host '================================================================'
 Write-Host ''
@@ -143,7 +143,7 @@ if (-not $NoSubmit) {
         Write-Host '  A submission password is required to run the scan.'
         Write-Host '  Contact your manager or the DevOps team if you do not have one.'
         Write-Host ''
-        $submitPassword = Read-Host '  Enter RatCatcher submission password'
+        $submitPassword = Read-Host '  Enter ACE submission password'
         if ([string]::IsNullOrWhiteSpace($submitPassword)) {
             Write-Host ''
             Write-Host '  No password entered — scan cancelled.'
@@ -184,7 +184,7 @@ function Write-Log {
 $attackWindow = [datetime]::Parse('2026-03-31T00:21:00Z').ToLocalTime()
 $startTime    = Get-Date
 
-Write-Log "RatCatcher - 10-check suite"
+Write-Log "ACE Axios scanner - 10-check suite"
 Write-Log "Attack window start: $attackWindow"
 Write-Log "Scanning paths: $($resolvedPaths -join ', ')"
 
