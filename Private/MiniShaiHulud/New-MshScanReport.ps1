@@ -25,8 +25,35 @@ function New-MshScanReport {
     $Findings = @($Findings | Where-Object { $_ })
     $crit = @($Findings | Where-Object { $_.Severity -eq 'Critical' }).Count
     $high = @($Findings | Where-Object { $_.Severity -eq 'High' }).Count
+
+    # Post-triage counts. Per docs/PLAN-wormcatcher-actionable-verdicts.md
+    # Phase F, the headline now reflects ScannerVerdict (post-audit) rather
+    # than raw severity (pre-audit). Findings without ScannerVerdict count
+    # as "corroborating signals" — visible in the report but not driving
+    # the headline.
+    $findingsWithVerdict = @($Findings | Where-Object {
+        $_.PSObject.Properties.Name -contains 'ScannerVerdict' -and $_.ScannerVerdict
+    })
+    $confirmedCount    = @($findingsWithVerdict | Where-Object { $_.ScannerVerdict -eq 'Confirmed'    }).Count
+    $clearedCount      = @($findingsWithVerdict | Where-Object { $_.ScannerVerdict -eq 'Cleared'      }).Count
+    $inconclusiveCount = @($findingsWithVerdict | Where-Object { $_.ScannerVerdict -eq 'Inconclusive' }).Count
+    $actionRequiredCount = @($findingsWithVerdict | Where-Object {
+        $_.PSObject.Properties.Name -contains 'ActionRequired' -and $_.ActionRequired
+    }).Count
+    $corroboratingCount = $Findings.Count - $findingsWithVerdict.Count
+
     if (-not $Verdict) {
-        $Verdict = if ($crit -gt 0) { 'COMPROMISED' } elseif ($high -gt 0) { 'REVIEW' } else { 'CLEAN' }
+        $Verdict = if ($confirmedCount -gt 0) {
+            'COMPROMISED'
+        } elseif ($actionRequiredCount -gt 0) {
+            'REVIEW'
+        } elseif ($crit -gt 0) {
+            'COMPROMISED'   # back-compat for callers that didn't propagate verdicts
+        } elseif ($high -gt 0) {
+            'REVIEW'
+        } else {
+            'CLEAN'
+        }
     }
     $verdict = $Verdict
 
@@ -66,6 +93,18 @@ h2{color:#58a6ff;font-size:1rem;letter-spacing:2px;margin-top:28px;border-left:3
 .f-sev.medium{background:rgba(212,194,34,.15);color:#d4c222}
 .f-sev.low{background:rgba(88,166,255,.15);color:#58a6ff}
 .f-sev.informational{background:rgba(110,118,129,.15);color:#8b949e}
+.f-verdict{display:inline-block;font-size:0.7rem;font-weight:bold;letter-spacing:1px;padding:1px 8px;border-radius:2px;margin-left:6px;border:1px solid currentColor}
+.f-verdict.confirmed{color:#f85149;background:rgba(248,81,73,.1)}
+.f-verdict.cleared{color:#3fb950;background:rgba(63,185,80,.1)}
+.f-verdict.inconclusive{color:#e8a838;background:rgba(232,168,56,.1)}
+.f-action{margin-top:6px;padding:8px 10px;background:rgba(232,168,56,.06);border-left:2px solid #e8a838;font-size:0.78rem;color:#e8a838;border-radius:2px}
+.f-action b{color:#f0883e;margin-right:6px}
+.headline{font-size:0.88rem;margin:8px 0 16px;padding:14px 18px;background:#1a1a1a;border:1px solid #21303f;border-radius:3px;line-height:1.55}
+.headline b{color:#c9d1d9}
+.headline .h-conf{color:#f85149;font-weight:bold}
+.headline .h-clr{color:#3fb950;font-weight:bold}
+.headline .h-act{color:#e8a838;font-weight:bold}
+.headline .h-corr{color:#6e7681}
 .f-desc{font-size:0.82rem;color:#c9d1d9;margin:6px 0 8px}
 .f-row{display:grid;grid-template-columns:120px 1fr;gap:4px 12px;font-size:0.74rem;margin-top:3px}
 .f-k{color:#6e7681;letter-spacing:1px;text-transform:uppercase}
@@ -162,14 +201,66 @@ $svRow
             $sev = $_.Severity.ToLower()
             $rows = New-Object System.Collections.Generic.List[string]
             if ($_.Path) { $rows.Add("<div class=`"f-row`"><span class=`"f-k`">PATH</span><span class=`"f-v`">$(_Encode $_.Path)</span></div>") }
+
+            # Pull out the verdict envelope fields so we can promote them to
+            # a dedicated chip + action banner above the generic k/v rows.
+            $hasVerdict = $_.PSObject.Properties.Name -contains 'ScannerVerdict' -and $_.ScannerVerdict
+            $hasAction  = $_.PSObject.Properties.Name -contains 'ActionRequired' -and $_.ActionRequired
+
             foreach ($prop in $_.PSObject.Properties) {
                 $n = $prop.Name
                 if ($n -in @('Type','Severity','Description','Path')) { continue }
+                # Suppress the verdict/action fields from the generic rows —
+                # they're rendered separately as chip + banner above.
+                if ($n -in @('ScannerVerdict','ScannerVerdictReason','ActionRequired','ActionTarget')) { continue }
                 $v = if ($null -eq $prop.Value) { '' } else { [string]$prop.Value }
                 if ($v) { $rows.Add("<div class=`"f-row`"><span class=`"f-k`">$(_Encode $n.ToUpper())</span><span class=`"f-v`">$(_Encode $v)</span></div>") }
             }
-            "<div class=`"finding $sev`"><span class=`"f-type`">$(_Encode $_.Type)</span><span class=`"f-sev $sev`">$($_.Severity.ToUpper())</span><div class=`"f-desc`">$(_Encode $_.Description)</div>$($rows -join '')</div>"
+
+            $verdictChip = if ($hasVerdict) {
+                $vcls = $_.ScannerVerdict.ToLower()
+                "<span class=`"f-verdict $vcls`">$(_Encode $_.ScannerVerdict.ToUpper())</span>"
+            } else { '' }
+
+            $verdictReasonRow = if ($hasVerdict -and $_.PSObject.Properties.Name -contains 'ScannerVerdictReason' -and $_.ScannerVerdictReason) {
+                "<div class=`"f-row`"><span class=`"f-k`">VERDICT REASON</span><span class=`"f-v`">$(_Encode $_.ScannerVerdictReason)</span></div>"
+            } else { '' }
+
+            $actionBanner = if ($hasAction) {
+                $target = if ($_.PSObject.Properties.Name -contains 'ActionTarget' -and $_.ActionTarget) {
+                    " (to $(_Encode $_.ActionTarget))"
+                } else { '' }
+                "<div class=`"f-action`"><b>ACTION REQUIRED${target}:</b> $(_Encode $_.ActionRequired)</div>"
+            } else { '' }
+
+            "<div class=`"finding $sev`"><span class=`"f-type`">$(_Encode $_.Type)</span><span class=`"f-sev $sev`">$($_.Severity.ToUpper())</span>$verdictChip<div class=`"f-desc`">$(_Encode $_.Description)</div>$verdictReasonRow$($rows -join '')$actionBanner</div>"
         }) -join "`n"
+    }
+
+    # Post-triage headline (Phase F). Sits between the meta block and the
+    # IOC source line. Only renders when at least one finding carries a
+    # ScannerVerdict (older callers that don't set it skip this section).
+    $headlineHtml = ''
+    if ($findingsWithVerdict.Count -gt 0) {
+        $confirmedTxt = if ($confirmedCount -gt 0) {
+            "<span class='h-conf'>$confirmedCount confirmed Tier-1 worm artifact$(if ($confirmedCount -ne 1) { 's' } else { '' })</span>"
+        } else {
+            "<b>0</b> confirmed Tier-1 worm artifacts"
+        }
+        $clearedTxt = if ($clearedCount -gt 0) {
+            "<span class='h-clr'>$clearedCount watchlist match$(if ($clearedCount -ne 1) { 'es' } else { '' }) cleared by npm advisory database</span>"
+        } else { '' }
+        $actionTxt = if ($actionRequiredCount -gt 0) {
+            "<span class='h-act'>$actionRequiredCount finding$(if ($actionRequiredCount -ne 1) { 's' } else { '' }) need user/manager action</span> (see Action Required banner on each)"
+        } else { '' }
+        $corroboratingTxt = if ($corroboratingCount -gt 0) {
+            "<span class='h-corr'>$corroboratingCount corroborating signal$(if ($corroboratingCount -ne 1) { 's' } else { '' })</span>"
+        } else { '' }
+        $skippedNote = if ($ScanMetadata.ContainsKey('NpmAuditSkipped') -and $ScanMetadata.NpmAuditSkipped) {
+            ' <span class="warn">[npm audit skipped by operator — wildcard findings unverified]</span>'
+        } else { '' }
+        $parts = @($confirmedTxt, $clearedTxt, $actionTxt, $corroboratingTxt) | Where-Object { $_ }
+        $headlineHtml = "<div class='headline'><b>POST-TRIAGE:</b> $($parts -join '. ').$skippedNote</div>"
     }
 
     $notChecked = @'
@@ -200,6 +291,7 @@ $svRow
 <span class='meta-k'>VERDICT</span><span class='meta-v'>$verdictHtml</span>
 <span class='meta-k'>FINDINGS</span><span class='meta-v'>$($Findings.Count) ($crit Critical, $high High)</span>
 </div>
+$headlineHtml
 $envelopeHtml
 <p class='ioc-source $iocSrcCls'>$(_Encode $iocLine)</p>
 <h2>FINDINGS</h2>

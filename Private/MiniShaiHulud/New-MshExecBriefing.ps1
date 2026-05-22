@@ -21,8 +21,35 @@ function New-MshExecBriefing {
     $Findings = @($Findings | Where-Object { $_ })
     $crit = @($Findings | Where-Object { $_.Severity -eq 'Critical' }).Count
     $high = @($Findings | Where-Object { $_.Severity -eq 'High' }).Count
+
+    # Post-triage counts (plan Phase F + G).
+    $findingsWithVerdict = @($Findings | Where-Object {
+        $_.PSObject.Properties.Name -contains 'ScannerVerdict' -and $_.ScannerVerdict
+    })
+    $confirmedFindings = @($findingsWithVerdict | Where-Object { $_.ScannerVerdict -eq 'Confirmed'    })
+    $clearedFindings   = @($findingsWithVerdict | Where-Object { $_.ScannerVerdict -eq 'Cleared'      })
+    $inconclusiveFindings = @($findingsWithVerdict | Where-Object { $_.ScannerVerdict -eq 'Inconclusive' })
+    $actionFindings    = @($findingsWithVerdict | Where-Object {
+        $_.PSObject.Properties.Name -contains 'ActionRequired' -and $_.ActionRequired
+    })
+    $confirmedCount      = $confirmedFindings.Count
+    $clearedCount        = $clearedFindings.Count
+    $inconclusiveCount   = $inconclusiveFindings.Count
+    $actionRequiredCount = $actionFindings.Count
+    $corroboratingCount  = $Findings.Count - $findingsWithVerdict.Count
+
     if (-not $Verdict) {
-        $Verdict = if ($crit -gt 0) { 'COMPROMISED' } elseif ($high -gt 0) { 'REVIEW' } else { 'CLEAN' }
+        $Verdict = if ($confirmedCount -gt 0) {
+            'COMPROMISED'
+        } elseif ($actionRequiredCount -gt 0) {
+            'REVIEW'
+        } elseif ($crit -gt 0) {
+            'COMPROMISED'
+        } elseif ($high -gt 0) {
+            'REVIEW'
+        } else {
+            'CLEAN'
+        }
     }
     $verdict = $Verdict
 
@@ -61,6 +88,15 @@ h2{color:#58a6ff;font-size:0.95rem;letter-spacing:2px;margin-top:24px}
 .rc-link{display:inline-block;background:#1a1a1a;border:1px solid #21303f;color:#58a6ff;padding:7px 16px;text-decoration:none;font-size:0.82rem;letter-spacing:1px;border-radius:3px}
 .rc-link:hover{border-color:#58a6ff}
 .disclaimer{font-size:0.78rem;color:#e8a838;background:rgba(232,168,56,.07);border:1px solid rgba(232,168,56,.25);padding:10px 14px;margin:12px 0;border-radius:3px}
+.action-card{background:#1a1a1a;border:1px solid #2d3a4a;border-left:3px solid #e8a838;padding:14px 18px;margin:10px 0;border-radius:3px;font-size:0.85rem}
+.action-head{color:#e8a838;font-size:0.9rem;margin-bottom:8px;letter-spacing:1px}
+.action-body{color:#c9d1d9;margin:8px 0;line-height:1.5}
+.action-body b{color:#f0883e}
+.action-paths{margin-top:8px;font-size:0.78rem;color:#8b949e}
+.action-paths b{color:#c9d1d9}
+.action-paths ul{margin:4px 0 0 18px;padding:0}
+.action-paths li{margin:2px 0}
+.action-paths code{background:#0d1117;padding:1px 4px;border-radius:2px;color:#c9d1d9}
 </style>
 '@
 
@@ -124,19 +160,114 @@ This scanner reports the findings produced by 12 checks at the time it ran. It d
 '@
 
     $summaryClass = $verdict.ToLower()
+
+    # Helper: produce a "List N path(s) (and M more)" string from a finding
+    # array, used in the post-triage headline below.
+    function _PathList { param($findings, [int]$cap = 3)
+        $paths = @($findings | ForEach-Object {
+            if ($_.PSObject.Properties.Name -contains 'Path' -and $_.Path) {
+                [string]$_.Path
+            }
+        } | Where-Object { $_ })
+        if ($paths.Count -le $cap) { return ($paths -join '; ') }
+        $shown = ($paths | Select-Object -First $cap) -join '; '
+        return "$shown (and $($paths.Count - $cap) more)"
+    }
+
+    # Phase F headlines — reflect post-triage reality, not raw match count.
+    $skippedNote = if ($ScanMetadata.ContainsKey('NpmAuditSkipped') -and $ScanMetadata.NpmAuditSkipped) {
+        ' <i>(npm audit skipped by operator — wildcard findings unverified)</i>'
+    } else { '' }
+
     $summaryBody = switch ($verdict) {
         'COMPROMISED' {
-            "<b>$($Findings.Count) findings, $crit Critical and $high High.</b> At least one finding matched a known Mini Shai-Hulud IOC. Follow the mitigation steps in the runbook immediately: revoke npm tokens, rotate cloud credentials, audit CI workflows. Treat this as an incident."
+            $confirmedPaths = _PathList -findings $confirmedFindings -cap 3
+            $confirmedLine = if ($confirmedCount -gt 0) {
+                "<b>COMPROMISED — $confirmedCount confirmed Tier-1 worm artifact$(if ($confirmedCount -ne 1) { 's' } else { '' })</b> ($(_Encode $confirmedPaths))."
+            } else {
+                # Back-compat fallback: COMPROMISED without ScannerVerdict
+                # population (legacy callers). Use the legacy phrasing.
+                "<b>$($Findings.Count) findings, $crit Critical and $high High.</b> At least one finding matched a known Mini Shai-Hulud IOC."
+            }
+            $auditLine = if ($clearedCount -gt 0) {
+                " $clearedCount additional watchlist match$(if ($clearedCount -ne 1) { 'es' } else { '' }) investigated by npm advisory database; all $clearedCount cleared."
+            } else { '' }
+            $actionLine = if ($actionRequiredCount -gt 0) {
+                " $actionRequiredCount finding$(if ($actionRequiredCount -ne 1) { 's' } else { '' }) need user/manager action (see Action Items below)."
+            } else { '' }
+            $corrLine = if ($corroboratingCount -gt 0) {
+                " $corroboratingCount corroborating signal$(if ($corroboratingCount -ne 1) { 's' } else { '' }) (token atime, npm cache activity, etc.)."
+            } else { '' }
+            "$confirmedLine$auditLine$actionLine$corrLine$skippedNote Follow the mitigation steps in the runbook immediately: revoke npm tokens, rotate cloud credentials, audit CI workflows."
         }
         'REVIEW' {
-            "<b>$($Findings.Count) findings, all High or lower — no IOC matches.</b> High-severity findings from this scanner are corroborating evidence (token-file access timestamps, recent npm cache activity) and are not, by themselves, proof of compromise. Open the technical report, glance at the findings, and ignore unless you see them paired with a Critical finding from a future scan."
+            $actionLine = if ($actionRequiredCount -gt 0) {
+                "<b>REVIEW — $actionRequiredCount finding$(if ($actionRequiredCount -ne 1) { 's' } else { '' }) could not be verified by npm advisory database</b> (e.g. npm not installed, no lockfile, network blocked)."
+            } else {
+                "<b>$($Findings.Count) findings, all High or lower — no IOC matches.</b> High-severity findings from this scanner are corroborating evidence and are not, by themselves, proof of compromise."
+            }
+            $auditLine = if ($clearedCount -gt 0) {
+                " $clearedCount watchlist match$(if ($clearedCount -ne 1) { 'es' } else { '' }) investigated; $clearedCount cleared."
+            } else { '' }
+            $confirmedLine = if ($confirmedCount -eq 0) { " 0 Tier-1 worm artifacts." } else { '' }
+            $forwardLine = if ($actionRequiredCount -gt 0) {
+                " Forward the per-finding Action Required instructions below to the affected users to complete triage."
+            } else {
+                " Open the technical report, glance at the findings, and ignore unless paired with a Critical finding from a future scan."
+            }
+            "$actionLine$auditLine$confirmedLine$forwardLine$skippedNote"
         }
         'INCONCLUSIVE' {
             "<b>Discovery saw no Node projects or git repos on this workstation.</b> This is NOT a clean result — the scanner had nothing to check. Code that lives outside the default discovery roots (e.g. on an excluded drive, in a folder we couldn't enumerate, or behind a permission boundary) would not be visible. Re-run with explicit -Path pointing at where code lives (e.g. -Path 'C:\Atriora','D:\Repos'), or verify the workstation actually has no project clones."
         }
         default {
-            "No findings produced across the 16 checks. See SCOPE below for what was and was not examined. Note this does not certify the machine is clean — see the disclaimer."
+            if ($clearedCount -gt 0 -or $corroboratingCount -gt 0) {
+                $clrPart = if ($clearedCount -gt 0) {
+                    "$clearedCount watchlist match$(if ($clearedCount -ne 1) { 'es' } else { '' }) investigated by npm advisory database; all $clearedCount cleared. "
+                } else { '' }
+                $corrPart = if ($corroboratingCount -gt 0) {
+                    "$corroboratingCount corroborating signal$(if ($corroboratingCount -ne 1) { 's' } else { '' }) reviewed. "
+                } else { '' }
+                "<b>CLEAN — 0 Tier-1 worm artifacts present.</b> $clrPart$corrPart$skippedNote"
+            } else {
+                "No findings produced across the 16 checks. See SCOPE below for what was and was not examined. Note this does not certify the machine is clean — see the disclaimer."
+            }
         }
+    }
+
+    # ── Action Items (plan Phase G) ───────────────────────────────────────────
+    # One card per unique (hostname, ActionRequired) tuple — but we only
+    # have one host per scan, so effectively one card per unique
+    # ActionRequired text. Cards sorted by number of blocked findings desc.
+    $actionItemsHtml = ''
+    if ($actionFindings.Count -gt 0) {
+        $grouped = $actionFindings | Group-Object -Property { [string]$_.ActionRequired } | Sort-Object Count -Descending
+        $cards = foreach ($g in $grouped) {
+            $sample = $g.Group | Select-Object -First 1
+            $target = if ($sample.PSObject.Properties.Name -contains 'ActionTarget' -and $sample.ActionTarget) {
+                " (to $(_Encode $sample.ActionTarget))"
+            } else { '' }
+            $count = $g.Count
+            $pathLines = ($g.Group | Select-Object -First 8 | ForEach-Object {
+                $p = if ($_.PSObject.Properties.Name -contains 'Path' -and $_.Path) { [string]$_.Path } else { '(no path)' }
+                $kind = $_.Type
+                "<li><code>$(_Encode $p)</code> <span style='color:#6e7681'>($(_Encode $kind))</span></li>"
+            }) -join ''
+            $more = if ($g.Group.Count -gt 8) { "<li style='color:#6e7681'>...and $($g.Group.Count - 8) more</li>" } else { '' }
+
+            @"
+<div class='action-card'>
+<div class='action-head'><b>$count finding$(if ($count -ne 1) { 's' } else { '' }) blocked</b>$target</div>
+<div class='action-body'><b>Required action:</b> $(_Encode $g.Name)</div>
+<div class='action-paths'><b>Affected:</b><ul>$pathLines$more</ul></div>
+</div>
+"@
+        }
+        $actionItemsHtml = @"
+<h2>ACTION ITEMS</h2>
+<p style='font-size:0.82rem;color:#8b949e'>One card per pending action. Forward each Required Action verbatim to the affected user; re-run the scanner once they complete it.</p>
+$($cards -join "`n")
+"@
     }
 
     $checksTable = @'
@@ -189,6 +320,7 @@ $envelopeHtml
 <h2>SUMMARY</h2>
 <div class='summary $summaryClass'>$summaryBody</div>
 $disclaimer
+$actionItemsHtml
 <h2>CHECKS PERFORMED</h2>
 $checksTable
 <h2>SCOPE</h2>
