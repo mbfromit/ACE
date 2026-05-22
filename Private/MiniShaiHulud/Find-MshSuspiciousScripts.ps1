@@ -76,13 +76,19 @@ function Find-MshSuspiciousScripts {
         if (-not $pkg) { continue }
 
         # Defensive: ConvertFrom-Json on a top-level scalar (e.g. just `42`
-        # or `"hello"`) returns a primitive, not a PSCustomObject. Under
-        # StrictMode Latest, $primitive.PSObject.Properties.Name throws
-        # because the empty PSMemberInfoCollection doesn't expose .Name as
-        # a direct property and the strict-mode property-fallback fails.
-        # Hard-gate on PSCustomObject to avoid the entire class of failures.
+        # or `"hello"`) returns a primitive, not a PSCustomObject. Hard-gate
+        # on PSCustomObject before any property access.
         if (-not ($pkg -is [System.Management.Automation.PSCustomObject])) { continue }
-        if (-not ($pkg.PSObject.Properties.Name -contains 'scripts')) { continue }
+        # Use the PSObject.Properties indexer instead of the `.Name -contains`
+        # idiom. Under StrictMode Latest, the `.Name` and `.Count` members on
+        # an EMPTY PSMemberInfoCollection throw "The property 'Name' cannot
+        # be found on this object" — and the empty-collection case is hit
+        # routinely by published npm packages that ship `"scripts": {}` in
+        # their package.json. The indexer returns either the property or
+        # $null, regardless of whether the collection is empty. See
+        # Tests/MiniShaiHulud/Find-MshSuspiciousScripts.Tests.ps1 — the
+        # "empty scripts object" regression case.
+        if ($null -eq $pkg.PSObject.Properties['scripts']) { continue }
         $scripts = $pkg.scripts
         if (-not $scripts) { continue }
         # 'scripts' value can legally be a string, array, or null in malformed
@@ -91,8 +97,9 @@ function Find-MshSuspiciousScripts {
         if (-not ($scripts -is [System.Management.Automation.PSCustomObject])) { continue }
 
         foreach ($hook in @('postinstall', 'preinstall', 'install')) {
-            if (-not ($scripts.PSObject.Properties.Name -contains $hook)) { continue }
-            $rawHook = $scripts.$hook
+            $hookProp = $scripts.PSObject.Properties[$hook]
+            if ($null -eq $hookProp) { continue }
+            $rawHook = $hookProp.Value
             if ($null -eq $rawHook) { continue }
             $script = [string]$rawHook
             if ([string]::IsNullOrWhiteSpace($script)) { continue }
@@ -105,8 +112,9 @@ function Find-MshSuspiciousScripts {
             $hasExec   = ($script -match 'child_process') -or ($script -match '\bexec\b') -or ($script -match '\bspawn\b')
             $severity  = if ($hasDecode -and $hasExec) { 'Critical' } else { 'High' }
 
-            $pkgName = if ($pkg.PSObject.Properties.Name -contains 'name' -and $pkg.name) {
-                [string]$pkg.name
+            $nameProp = $pkg.PSObject.Properties['name']
+            $pkgName  = if ($null -ne $nameProp -and $nameProp.Value) {
+                [string]$nameProp.Value
             } else {
                 Split-Path (Split-Path $mf -Parent) -Leaf
             }

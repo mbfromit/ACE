@@ -63,6 +63,26 @@ Describe 'Find-MshSuspiciousScripts — StrictMode resilience to malformed packa
         { Find-MshSuspiciousScripts -ProjectPath $script:proj -Iocs $script:iocs } | Should -Not -Throw
     }
 
+    It 'does not throw when scripts is an empty object {} (real-world common case)' {
+        # Many published npm packages ship `"scripts": {}` in package.json
+        # (declared, no hooks). Under StrictMode Latest, accessing
+        # $scripts.PSObject.Properties.Name on an EMPTY PSMemberInfoCollection
+        # throws "The property 'Name' cannot be found on this object." This
+        # bug was killing Check 5 once per project for every fleet engineer
+        # running the scanner — fixed by switching to the PSObject.Properties
+        # indexer pattern which is safe on empty collections.
+        _Plant 'empty-scripts' '{"name":"x","version":"1.0.0","scripts":{}}'
+        { Find-MshSuspiciousScripts -ProjectPath $script:proj -Iocs $script:iocs } | Should -Not -Throw
+    }
+
+    It 'does not throw when package.json itself is an empty object {}' {
+        # Edge-case sibling of the empty-scripts bug: $pkg.PSObject.Properties
+        # is empty so any `.Name` access would throw. Fixed by the same
+        # indexer-pattern switch.
+        _Plant 'empty-pkg' '{}'
+        { Find-MshSuspiciousScripts -ProjectPath $script:proj -Iocs $script:iocs } | Should -Not -Throw
+    }
+
     It 'does not throw when an individual hook value is null' {
         _Plant 'hook-null' '{"name":"x","scripts":{"postinstall":null,"build":"webpack"}}'
         { Find-MshSuspiciousScripts -ProjectPath $script:proj -Iocs $script:iocs } | Should -Not -Throw
