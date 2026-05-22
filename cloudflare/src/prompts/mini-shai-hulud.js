@@ -8,8 +8,13 @@ RESPOND WITH EXACTLY ONE LINE in this format:
 VERDICT: <Confirmed|Likely|Unlikely|FalsePositive> | REASON: <one sentence explanation>
 
 Definitions:
-- Confirmed: Finding directly matches a known IOC (exact compromised package@version, exact exfil URL/host, GitHub Actions runner artifact present, suspicious postinstall executing decoded base64 with child_process)
-- Likely: Finding is consistent with the campaign's TTPs but not an exact IOC match (e.g., Bun binary recently installed in attack window, npm publish events from a developer who does not normally publish, token files accessed during attack window)
+- Confirmed: Finding directly matches a known IOC. This includes:
+    * Exact compromised package@version in lockfile, package.json, or node_modules (Type: BadPackage-*)
+    * Exact exfil URL or host
+    * GitHub Actions runner artifact present
+    * Suspicious postinstall executing decoded base64 with child_process
+    * **Tier-1 on-disk artifacts** — any of: WormWorkflowFile (a shai-hulud-*.yml file inside .github/workflows of a local repo), WormPayloadFile (bundle.js inside node_modules/<known-bad-pkg>/), WormDropperArtifact (processor.sh at /tmp, $HOME, or a Node project root), TrufflehogDrop (the trufflehog binary at /tmp, ~/Downloads, or ~/.npm/_cacache with mtime inside the attack window). These four filenames have no legitimate origin in those locations — a single match is sufficient for Confirmed.
+- Likely: Finding is consistent with the campaign's TTPs but not an exact IOC match (e.g., Bun binary recently installed in attack window, npm publish events from a developer who does not normally publish, token files accessed during attack window, TrufflehogDrop with mtime OUTSIDE the attack window)
 - Unlikely: Finding has weak or coincidental connection (e.g., Bun present but not modified recently, ~/.npmrc atime change with no other corroborating evidence)
 - FalsePositive: Finding is clearly unrelated normal activity (e.g., a developer who legitimately uses Bun, scheduled CI runner on a known build host, package install of a clean version of an affected scope)
 
@@ -48,6 +53,13 @@ KNOWN COMPROMISED PACKAGES (non-exhaustive, list keeps growing):
 ATTACK WINDOW:
 - Start: 2026-04-01 00:00 UTC (first known wave hitting @cap-js and mbt)
 - End: ongoing as of 2026-05-21
+
+TIER-1 ON-DISK ARTIFACTS (a single match means CONFIRMED COMPROMISE — no legitimate origin):
+- A file at <repo>/.github/workflows/shai-hulud-workflow.yml (or shai-hulud.yml / shai-hulud.yaml) inside any local git repo. The worm writes this as CI-persistence after credential theft, so it runs on every workflow trigger and re-exfiltrates. Scanner finding Type: WormWorkflowFile.
+- A file named bundle.js inside node_modules/<known-bad-package>/. This is the worm payload itself. Scanner finding Type: WormPayloadFile. Optional SHA-256 verification is performed but not required — the campaign rotates payload bytes, so a hash mismatch does not invalidate the finding.
+- A file named processor.sh at /tmp, $HOME, or any discovered Node project root. The worm's staging script. Scanner finding Type: WormDropperArtifact.
+- A trufflehog or trufflehog.exe binary at /tmp/trufflehog, ~/Downloads/trufflehog, or ~/.npm/_cacache/trufflehog. The worm downloads TruffleHog to scrape secrets from the workstation. Scanner finding Type: TrufflehogDrop. Severity is conditional: file mtime inside the attack window = Critical (confirmed staging); mtime outside the window = High (could be a developer install, worth review). A standard 'brew install trufflehog' or 'winget install' leaves the binary on PATH but NOT at these specific drop paths.
+- Remote: a public GitHub repository named 'Shai-Hulud' on the victim's GitHub account, containing a file named 'data.json'. This is the worm's post-exfil persistence step. Not probed by the workstation scanner but worth flagging in any cross-reference investigation.
 
 TTP MARKERS (what to look for on a workstation):
 - Lockfile or package.json references to any known compromised name@version.

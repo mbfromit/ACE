@@ -1,7 +1,7 @@
 {
-  "version": 1,
+  "version": 2,
   "campaign": "mini-shai-hulud",
-  "updated_at": "2026-05-21T12:00:00Z",
+  "updated_at": "2026-05-21T18:00:00Z",
   "packages": [
     { "name": "@cap-js/sqlite",      "versions": ["2.2.2"] },
     { "name": "@cap-js/postgres",    "versions": ["2.2.2"] },
@@ -26,6 +26,18 @@
     "bun ",
     "child_process"
   ],
-  "attack_window_start": "2026-04-01T00:00:00Z",
-  "attack_window_end": null
+  "payload_filenames":     ["bundle.js"],
+  "payload_hashes":        { "sha256": [] },
+  "workflow_filenames":    ["shai-hulud-workflow.yml", "shai-hulud.yml", "shai-hulud.yaml"],
+  "dropper_filenames":     ["processor.sh"],
+  "dropper_drop_paths":    ["<tmp>", "<home>", "<node_project>"],
+  "trufflehog_drop_paths": [
+    "/tmp/trufflehog",
+    "~/Downloads/trufflehog",
+    "~/.npm/_cacache/trufflehog"
+  ],
+  "exfil_repo_names":      ["Shai-Hulud"],
+  "exfil_repo_files":      ["data.json"],
+  "attack_window_start":   "2026-04-01T00:00:00Z",
+  "attack_window_end":     null
 }

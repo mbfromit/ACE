@@ -278,7 +278,7 @@ Consider full OS re-image if an active C2 connection was found.</div></div>
 "@
 
     # ── Compose page ───────────────────────────────────────────────────────────
-    $logoImg      = if ($LogoBase64) { "<img src=`"data:image/png;base64,$LogoBase64`" class=`"rc-logo`" alt=`"RatCatcher`">" } else { '' }
+    $logoImg      = if ($LogoBase64) { "<img src=`"data:image/png;base64,$LogoBase64`" class=`"rc-logo`" alt=`"Access Compliance Engine`">" } else { '' }
     $s1class      = if ($vulnProjects.Count -gt 0) { ' s-danger' } else { '' }
     $s2class      = if ($criticalCount -gt 0)      { ' s-danger' } else { '' }
     $s3class      = if ($verdictClass -eq 'compromised') { ' s-danger' } elseif ($verdictClass -eq 'ai-fp') { ' s-warn' } else { '' }
@@ -368,14 +368,14 @@ strong{color:var(--text-bright)}
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>RatCatcher — Forensic Report — $(Esc $ScanMetadata.Hostname)</title>
+<title>ACE — Forensic Report — $(Esc $ScanMetadata.Hostname)</title>
 <style>$css</style>
 </head>
 <body>
 <div class="rc-header">
   $logoImg
   <div class="rc-header-text">
-    <div class="rc-title">RATCATCHER</div>
+    <div class="rc-title">ACCESS COMPLIANCE ENGINE</div>
     <div class="rc-subtitle">FORENSIC REPORT &nbsp;&#47;&#47;&nbsp; $(Esc $ScanMetadata.Hostname) &nbsp;&#47;&#47;&nbsp; $(Esc $ScanMetadata.Timestamp)</div>
   </div>
   <div class="rc-hv $verdictClass">$displayVerdict</div>
@@ -417,7 +417,7 @@ strong{color:var(--text-bright)}
 </div>
 
 <div class="rc-footer">
-  RATCATCHER v2.1.0 &nbsp;&#47;&#47;&nbsp; $(Esc $ScanMetadata.Hostname) &nbsp;&#47;&#47;&nbsp; Scan completed $(Esc $ScanMetadata.Timestamp)
+  ACCESS COMPLIANCE ENGINE v2.1.0 &nbsp;&#47;&#47;&nbsp; $(Esc $ScanMetadata.Hostname) &nbsp;&#47;&#47;&nbsp; Scan completed $(Esc $ScanMetadata.Timestamp)
 </div>
 </body>
 </html>

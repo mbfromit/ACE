@@ -1,11 +1,11 @@
-# RatCatcher 2.1
+# Access Compliance Engine (ACE) 2.1
 
-![RatCatcher 2.0](RatCatcher2.png)
+![Access Compliance Engine](assets/images/ACE_Logo.png)
 
 An **AI-powered, cross-platform** PowerShell forensic scanner suite for npm supply-chain compromise. The suite ships two scanners that submit to a shared dashboard:
 
-- **`Invoke-RatCatcher.ps1`** (**RatCatcher**) — the **March 31, 2026 Axios NPM supply chain attack** (malicious `plain-crypto-js` dependency in `axios` v1.14.1 / v0.30.4). Ten checks covering the full compromise kill chain.
-- **`Invoke-MiniShaiHulud.ps1`** (**WormCatcher**) — the **Mini Shai-Hulud npm supply-chain worm** (TeamPCP, April–May 2026 onward). Twelve workstation checks. See [WormCatcher usage below](#running-wormcatcher-mini-shai-hulud) and the [WormCatcher runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md). Reports findings only — does **not** certify a machine virus-free (the campaign is polymorphic and lives primarily in CI runners + stolen npm tokens, not on workstations).
+- **`Invoke-RatCatcher.ps1`** — the **March 31, 2026 Axios NPM supply chain attack** (malicious `plain-crypto-js` dependency in `axios` v1.14.1 / v0.30.4). Ten checks covering the full compromise kill chain.
+- **`Invoke-MiniShaiHulud.ps1`** (**WormCatcher**) — the **Mini Shai-Hulud npm supply-chain worm** (TeamPCP, April–May 2026 onward). **Sixteen workstation checks** — twelve corroborating signals plus four Tier-1 on-disk IOC probes (worm CI-persistence file, payload, dropper, TruffleHog drop). Phase 1 of the scan does a bounded discovery walk across fixed + removable drives, so code that lives outside the user's home dir (e.g. `C:\Atriora`, `D:\Repos`, a USB dev drive) is no longer invisible. See [WormCatcher usage below](#running-wormcatcher-mini-shai-hulud) and the [WormCatcher runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md). Reports findings only — does **not** certify a machine virus-free (the campaign is polymorphic and lives primarily in CI runners + stolen npm tokens, not on workstations).
 
 Both scanners produce detailed reports and **automatically evaluate every finding using Gemma 4 AI** to distinguish real threats from false positives. The dashboard segments submissions by campaign (Axios vs Mini Shai-Hulud) via a top-level selector, with independent filtering, stats, and AI prompting per campaign.
 
@@ -17,7 +17,7 @@ You can read more about the attack here: https://thehackernews.com/2026/03/axios
 
 ## What's New in v2.1
 
-- **Cross-Platform Support** - RatCatcher now runs on **Windows, macOS, and Linux**. The scanner auto-detects the platform and uses OS-specific checks for dropped payloads, persistence mechanisms, network evidence, and credential locations. Requires PowerShell 7.0+.
+- **Cross-Platform Support** - ACE now runs on **Windows, macOS, and Linux**. The scanner auto-detects the platform and uses OS-specific checks for dropped payloads, persistence mechanisms, network evidence, and credential locations. Requires PowerShell 7.0+.
 
 ## What's New in v2.0
 
@@ -134,9 +134,9 @@ Reports are always saved locally to `C:\Logs` on Windows or `/tmp` on macOS/Linu
 
 ## Running WormCatcher (Mini Shai-Hulud)
 
-**WormCatcher** (`Invoke-MiniShaiHulud.ps1`) is the sibling scanner for the **Mini Shai-Hulud** npm supply-chain worm. It is a separate script from RatCatcher — different IOCs, different TTPs, different campaign tag in the dashboard. Both scanners can be run on the same machine in either order.
+**WormCatcher** (`Invoke-MiniShaiHulud.ps1`) is the sibling scanner for the **Mini Shai-Hulud** npm supply-chain worm. It is a separate script from the Axios scanner (`Invoke-RatCatcher.ps1`) — different IOCs, different TTPs, different campaign tag in the dashboard. Both scanners can be run on the same machine in either order.
 
-> **Honest scope:** WormCatcher reports the findings produced by twelve checks at the time it ran. It does **not** certify the machine is virus-free, and makes no 100%-certainty claim. Mini Shai-Hulud is polymorphic and primarily lives in CI runners + stolen npm tokens — pair the scan with token rotation and a CI workflow audit per the [runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md).
+> **Honest scope:** WormCatcher reports the findings produced by sixteen checks at the time it ran. It does **not** certify the machine is virus-free, and makes no 100%-certainty claim. Mini Shai-Hulud is polymorphic and primarily lives in CI runners + stolen npm tokens — pair the scan with token rotation and a CI workflow audit per the [runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md).
 
 ### Quick start (5 commands, all you need)
 
@@ -149,15 +149,21 @@ git clone https://github.com/mbfromit/RatCatcher.git
 cd RatCatcher
 
 # 3. Allow scripts in this shell session (Windows only — macOS/Linux skip this)
+#    -Scope Process means the bypass dies with this PowerShell window. It does
+#    NOT touch your registered execution policy. Close the window when done.
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
-# 4. Run the scanner — defaults already point to the production dashboard
+# 4. Run the scanner — defaults already point to the production dashboard.
+#    With no flags, Phase 1 walks all fixed + removable drives looking for
+#    git repos and Node project roots. Typical dev box: under 2 minutes.
 .\Invoke-MiniShaiHulud.ps1
 
 # 5. When prompted, enter the submission password your manager / DevOps team provided
 ```
 
 Reports land in `C:\Logs` (Windows) or `/tmp` (macOS/Linux). Submissions appear on the dashboard at https://mbfromit.com/ratcatcher/dashboard under the **Mini Shai-Hulud** campaign tab.
+
+> **Drives the scanner touches by default:** all internal fixed drives (C:, D:, ...) AND all removable drives (USB sticks, external SSDs that show up as a letter). Network drives are **off** by default because of their unpredictable latency. Cloud-sync placeholder files (OneDrive Files-On-Demand, iCloud) are detected by attribute and skipped without triggering a download. Use `-ExcludeDrives D,E` to opt a known media/backup drive out of the scan; use `-IncludeNetworkDrives` to opt mapped network shares in.
 
 ### macOS quick start (zsh)
 
@@ -172,14 +178,16 @@ cd RatCatcher
 # 3. Smoke-test the Pester suite (optional, ~30s)
 pwsh -Command "Invoke-Pester -Path Tests/ -Output Detailed"
 
-# 4. Run the scanner. Default scan roots: ~/dev ~/src ~/code ~/projects ~/Documents.
-#    -NoSubmit if you just want the report locally without uploading.
+# 4. Run the scanner. Default discovery walks $HOME + /opt + /srv + each
+#    /Volumes/* mount (external SSDs included; read-only Time Machine volumes
+#    are filtered out via volume info). -NoSubmit if you just want the
+#    report locally without uploading.
 pwsh ./Invoke-MiniShaiHulud.ps1
 ```
 
 Reports land in `/tmp/MiniShaiHulud-Report-*.html` and `/tmp/MiniShaiHulud-Brief-*.html`. Open them with `open /tmp/MiniShaiHulud-Brief-*.html`.
 
-**Mac-specific check coverage:** Bun runtime (`~/.bun/bin/bun` + `~/.bun/install/cache`), token atime (`~/.npmrc`, `~/.aws/credentials`, `~/.ssh/id_*`, `~/.config/gh/hosts.yml`), pnpm store (`~/Library/pnpm/store`), Yarn Berry cache (`~/.yarn/berry/cache`), DNS via `dscacheutil` + active TCP via `lsof -i`, zsh extended history (`~/.zsh_history`). APFS atime is unreliable when the volume mounts with relatime semantics — the scanner flags TokenTouch findings as corroborating evidence only, not standalone proof.
+**Mac-specific check coverage:** Bun runtime (`~/.bun/bin/bun` + `~/.bun/install/cache`), token atime (`~/.npmrc`, `~/.aws/credentials`, `~/.ssh/id_*`, `~/.config/gh/hosts.yml`), pnpm store (`~/Library/pnpm/store`), Yarn Berry cache (`~/.yarn/berry/cache`), DNS via `dscacheutil` + active TCP via `lsof -i`, zsh extended history (`~/.zsh_history`). APFS atime is unreliable when the volume mounts with relatime semantics — the scanner flags TokenTouch findings as corroborating evidence only, not standalone proof. iCloud Drive at `~/Library/Mobile Documents/` IS walked; `~/Library/Caches`, `~/Library/Containers`, `~/Library/Group Containers`, and `~/.Trash` are explicitly skipped.
 
 ### Prerequisites
 
@@ -192,7 +200,7 @@ Reports land in `/tmp/MiniShaiHulud-Report-*.html` and `/tmp/MiniShaiHulud-Brief
   | Ubuntu/Debian | `sudo apt install powershell` (after adding Microsoft repo) |
   | RHEL/CentOS | `sudo dnf install powershell` (after adding Microsoft repo) |
 
-- **Submission password** — same one your team already uses for RatCatcher. Ask DevOps or your manager.
+- **Submission password** — same one your team already uses for the Axios scanner. Ask DevOps or your manager.
 
 ### Alternate install: download ZIP
 
@@ -203,21 +211,39 @@ If you can't `git clone`:
 3. Extract to a folder (e.g. `C:\Tools\RatCatcher`)
 4. `cd` into it in PowerShell 7 and continue with step 3 above
 
-### Basic scan (defaults to common dev folders under your home directory)
+### Basic scan (default: bounded discovery walk across all local drives)
 
 ```powershell
-# Windows
+# Windows — walks every fixed + removable drive looking for git repos and
+# Node project roots, then runs all 16 checks. Per-drive cap 3 min,
+# per-tree cap 90 s, overall cap 5 min.
 .\Invoke-MiniShaiHulud.ps1
 
-# macOS / Linux
+# macOS / Linux — walks $HOME + /opt + /srv + each external mount
 pwsh ./Invoke-MiniShaiHulud.ps1
 ```
 
-### Scan a specific folder
+### Scan a specific folder (overrides default discovery)
 
 ```powershell
 .\Invoke-MiniShaiHulud.ps1 -Path C:\Dev
 pwsh ./Invoke-MiniShaiHulud.ps1 -Path ~/Projects
+
+# Multiple roots
+.\Invoke-MiniShaiHulud.ps1 -Path C:\Atriora,D:\Repos
+```
+
+### Narrow the drive scope (Windows)
+
+```powershell
+# Skip a 4 TB media drive that has no code on it
+.\Invoke-MiniShaiHulud.ps1 -ExcludeDrives D,E
+
+# Also include mapped network drives (off by default — slow / unpredictable)
+.\Invoke-MiniShaiHulud.ps1 -IncludeNetworkDrives
+
+# Tighten the overall Phase 1 budget (default 300s = 5 min)
+.\Invoke-MiniShaiHulud.ps1 -DiscoveryTimeoutSec 120
 ```
 
 ### Offline / air-gapped scan
@@ -244,13 +270,13 @@ pwsh ./Invoke-MiniShaiHulud.ps1 -Path ~/Projects
 
 ### Submission password
 
-Same submission password as RatCatcher — contact your manager or DevOps team. WormCatcher submissions land in the same dashboard tagged with the **Mini Shai-Hulud** campaign, distinguishable from Axios scans by an `[MSH]` chip on each row and via the **Campaign** selector at the top of the dashboard.
+Same submission password as the Axios scanner — contact your manager or DevOps team. WormCatcher submissions land in the same ACE dashboard tagged with the **Mini Shai-Hulud** campaign, distinguishable from Axios scans by an `[MSH]` chip on each row and via the **Campaign** selector at the top of the dashboard.
 
-### What WormCatcher checks (12 checks)
+### What WormCatcher checks (16 checks — 12 corroborating + 4 Tier-1 IOC probes)
 
 | # | Check | Default severity if hit |
 |---|---|---|
-| 1 | Discover Node.js projects | n/a (enumeration) |
+| 1 | Discover Node.js projects (Phase 1 bounded walk) | n/a (enumeration) |
 | 2 | Lockfile match against the IOC package list (scope wildcards supported) | Critical |
 | 3 | `package.json` direct dependency match | Critical |
 | 4 | Physical `node_modules/<scope>/<name>/package.json` match — catches anti-forensic lockfile cleanup | Critical |
@@ -262,6 +288,12 @@ Same submission password as RatCatcher — contact your manager or DevOps team. 
 | 10 | Recent activity inside attack window under npm / yarn / pnpm caches | High (Critical if filename matches IOC list) |
 | 11 | DNS cache + active TCP connections vs IOC exfil hosts | Informational / High (DNS) / Critical (active connection) |
 | 12 | `npm publish` events in bash/zsh/PSReadline history | High |
+| **13** | **Tier-1: worm CI-persistence workflow file** — `.github/workflows/shai-hulud-workflow.yml` (or `.yml`/`.yaml` variant) in any local git repo. No legitimate origin. | **Critical** |
+| **14** | **Tier-1: payload file inside compromised `node_modules`** — `bundle.js` under `node_modules/<known-bad-pkg>/`. Optional SHA-256 verification. | **Critical** |
+| **15** | **Tier-1: dropper artifact** — `processor.sh` at `/tmp`, `$HOME`, or any discovered Node project root. | **Critical** |
+| **16** | **Tier-1: TruffleHog drop in unexpected location** — `trufflehog` / `trufflehog.exe` at `/tmp`, `~/Downloads`, or `~/.npm/_cacache`. | **Critical** inside attack window; **High** outside |
+
+The "Tier-1" label means a single hit is sufficient to declare CONFIRMED COMPROMISE — these four filenames have no legitimate origin at those paths. A standard `brew install trufflehog` / `winget install` lands the binary on PATH but NOT at the specific drop paths in Check 16, so legitimate installs don't false-positive.
 
 The IOC list is fetched from the dashboard at startup, with a bundled JSON fallback and a 7-day temp cache for offline use. The bundled list ships with `Invoke-MiniShaiHulud.ps1` and is updated on the server when new waves disclose new compromised packages — re-run WormCatcher after each disclosed wave for full coverage.
 
@@ -278,13 +310,37 @@ For the full remediation playbook (revoke npm tokens, rotate cloud creds, audit 
 
 ### Verdict labels and exit codes
 
+WormCatcher emits a **post-triage** verdict — every finding goes through an authoritative triage step (npm advisory database for BadPackage findings; static Tier-1 rules for worm artifacts) before the headline is computed. A wildcard IOC match (e.g. `@tanstack/*`) that npm audit clears doesn't drive the verdict — it's logged as a "Cleared" watchlist match and reported in the post-triage rollup ("3 confirmed Tier-1, 62 cleared by npm audit").
+
 | Verdict | Meaning | Exit code |
 |---|---|---|
-| `CLEAN` | No findings across the 12 checks | `0` |
-| `REVIEW` | High-severity findings but no IOC matches — corroborating evidence (token-file atime, recent npm cache activity). Glance at the report, do not panic. | `0` |
-| `COMPROMISED` | At least one Critical finding — known Mini Shai-Hulud IOC matched. Treat as an incident, follow the runbook mitigation steps. | `1` |
+| `CLEAN` | Zero findings with `ScannerVerdict=Confirmed`. Watchlist matches (if any) all cleared by npm advisory database. **Note:** still does not certify the machine is virus-free — the campaign is polymorphic. | `0` |
+| `REVIEW` | Zero Confirmed findings, but one or more `ScannerVerdict=Inconclusive` findings have an `ActionRequired` (e.g. user needs to install npm; user needs to confirm a TruffleHog binary they may have placed at an unusual path). Manager forwards the per-finding instructions to affected users and re-runs the scanner. | `0` |
+| `INCONCLUSIVE` | Phase 1 discovery saw **no Node projects or git repos** on this workstation. The scanner had nothing to check. **This is NOT a clean result.** Retry with explicit `-Path` pointing at where code lives (e.g. `-Path 'C:\Atriora','D:\Repos'`), or verify the box really has no code clones. | `0` |
+| `COMPROMISED` | One or more findings have `ScannerVerdict=Confirmed`: a Tier-1 worm artifact on disk (workflow file, payload bundle, dropper, TruffleHog drop inside the attack window), or an IOC-matched package that npm advisory database also flags. Treat as an incident; follow the runbook mitigation steps. | `1` |
 
-`REVIEW` returns exit 0 so it does not break CI gates. Only `COMPROMISED` (Critical IOC match) is non-zero. The dashboard still receives `COMPROMISED` for `REVIEW`-state scans so manager workflow and AI verification engage — the three-state label is purely local.
+`REVIEW` and `INCONCLUSIVE` return exit 0 so they do not break CI gates. Only `COMPROMISED` is non-zero. The dashboard receives `COMPROMISED` for `REVIEW`-state scans so manager workflow and AI verification engage — the four-state label is purely local.
+
+`INCONCLUSIVE` is the verdict that closes the false-CLEAN failure mode where code on an excluded drive, inside an unenumerable folder, or on a host with no code clones used to silently report CLEAN. Now it tells you.
+
+### Manager workflow (post-triage verdicts and Action Items)
+
+Every BadPackage and Tier-1 finding now carries a verdict envelope:
+
+- **ScannerVerdict**: `Confirmed` | `Cleared` | `Inconclusive`
+- **ScannerVerdictReason**: plain-English citation of the authority (e.g. *"npm advisory database flags @tanstack/react-query@5.0.0 as compromised"* or *"Wildcard IOC matched, but npm advisory database reports no advisories for this exact version. Treating as false positive."*)
+- **ActionRequired**: when the scanner could not conclude, a copy-paste instruction the manager forwards to the affected user (e.g. *"Install Node.js + npm from https://nodejs.org/en/download/, then re-run WormCatcher"* when npm wasn't installed on the workstation; *"Did you install TruffleHog at `<path>` yourself? If no, escalate"* when a TruffleHog binary sits at an unusual path but mtime predates the campaign).
+- **ActionTarget**: `User` | `Manager` | `UserAndManager`
+
+The executive brief renders an **Action Items** section grouping findings by unique ActionRequired text. The manager copy-pastes each card's instruction to the affected user, the user complies, and the scanner re-runs to resolve.
+
+### `-SkipNpmAudit` (operator opt-out)
+
+By default WormCatcher runs `npm audit --json` against every project that produced an IOC match (cached per package name; one CLI call per unique package per project). On a typical dev box with 8–10 IOC-matched projects this adds 30–90 seconds. Pass `-SkipNpmAudit` to skip the audit entirely — all wildcard findings then route to `Inconclusive` and the brief's Action Items section lists *"Re-run without `-SkipNpmAudit`"* as the required action. Useful for big monorepos where audit cost outweighs the noise reduction, or when running offline.
+
+```powershell
+.\Invoke-MiniShaiHulud.ps1 -SkipNpmAudit
+```
 
 ### Verifying WormCatcher locally (synthetic IOCs)
 
@@ -412,7 +468,7 @@ Both files are named with the hostname and timestamp for easy identification.
 
 ### Check 10 — Dashboard Submission
 
-Submits the scan results (verdict, finding counts, and report files) to the RatCatcher dashboard using the submission password entered at the start of the scan. Reports are always saved locally regardless of whether submission succeeds.
+Submits the scan results (verdict, finding counts, and report files) to the ACE dashboard using the submission password entered at the start of the scan. Reports are always saved locally regardless of whether submission succeeds.
 
 ---
 
