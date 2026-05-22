@@ -214,7 +214,7 @@ tr.remediated .vrd{color:#58a6ff;font-weight:bold}
 <!-- Choice screen -->
 <div id="choice">
   <div class="lbox">
-    <img src="https://raw.githubusercontent.com/mbfromit/RatCatcher/main/assets/images/ACE_Logo_200.png" alt="Axxess Compliance Engine" style="max-width:200px;display:block;margin:0 auto 10px">
+    <img src="https://raw.githubusercontent.com/mbfromit/ACE/main/assets/images/ACE_Logo_200.png" alt="Axxess Compliance Engine" style="max-width:200px;display:block;margin:0 auto 10px">
     <p class="sub">Endpoint Security Scanner</p>
     <button class="btn" id="goAdmin">&#9881; Admin Dashboard</button>
     <div class="div-or">&mdash; OR &mdash;</div>
@@ -226,7 +226,7 @@ tr.remediated .vrd{color:#58a6ff;font-weight:bold}
 <!-- Admin login -->
 <div id="login">
   <div class="lbox">
-    <img src="https://raw.githubusercontent.com/mbfromit/RatCatcher/main/assets/images/ACE_Logo_200.png" alt="Axxess Compliance Engine" style="max-width:200px;display:block;margin:0 auto 10px">
+    <img src="https://raw.githubusercontent.com/mbfromit/ACE/main/assets/images/ACE_Logo_200.png" alt="Axxess Compliance Engine" style="max-width:200px;display:block;margin:0 auto 10px">
     <p style="text-align:center;color:#58a6ff;font-size:0.9rem;cursor:pointer;margin-bottom:28px" onclick="document.getElementById('wn-overlay').classList.add('open')"><span style="text-decoration:underline">Read What's New</span> &rarr;</p>
     <form id="lf">
       <input type="password" id="pw" placeholder="Admin password" autocomplete="current-password">
@@ -240,7 +240,7 @@ tr.remediated .vrd{color:#58a6ff;font-weight:bold}
 <!-- User login -->
 <div id="ulogin">
   <div class="lbox">
-    <img src="https://raw.githubusercontent.com/mbfromit/RatCatcher/main/assets/images/ACE_Logo_200.png" alt="Axxess Compliance Engine" style="max-width:200px;display:block;margin:0 auto 10px">
+    <img src="https://raw.githubusercontent.com/mbfromit/ACE/main/assets/images/ACE_Logo_200.png" alt="Axxess Compliance Engine" style="max-width:200px;display:block;margin:0 auto 10px">
     <p class="sub">View My Scans</p>
     <p class="uhelp">Enter the <strong style="color:#ccc">username</strong> you were logged in as when your ACE scan was run.<br><br>Not sure? Check the top of your scan output, or open Command Prompt and type <code>whoami</code>.</p>
     <form id="ulf">

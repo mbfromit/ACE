@@ -6,7 +6,7 @@
   Triggers: Check 5 (Dropped Malware Payloads) — DroppedExecutable (Critical)
 .USAGE
   .\Deploy-Check5.ps1
-  .\Invoke-RatCatcher.ps1
+  .\Invoke-ACE.ps1
 #>
 
 $artifactPath = Join-Path $env:TEMP 'ratcatcher-test-dropper.exe'

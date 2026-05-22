@@ -54,15 +54,15 @@ NOTE: It is recommended that you stop and save all work before running. This sca
 ### Option 1 — Clone with Git
 
 ```powershell
-git clone https://github.com/mbfromit/RatCatcher.git
-cd RatCatcher
+git clone https://github.com/mbfromit/ACE.git
+cd ACE
 ```
 
 ### Option 2 — Download ZIP
 
 1. Go to the repository on GitHub
 2. Click **Code → Download ZIP**
-3. Extract the ZIP to a folder of your choice (e.g. `C:\Tools\RatCatcher`)
+3. Extract the ZIP to a folder of your choice (e.g. `C:\Tools\ACE`)
 4. Open PowerShell and `cd` into that folder
 
 ### Allow the Script to Run (Windows only)
@@ -145,8 +145,8 @@ Reports are always saved locally to `C:\Logs` on Windows or `/tmp` on macOS/Linu
 winget install Microsoft.PowerShell
 
 # 2. Clone the repo
-git clone https://github.com/mbfromit/RatCatcher.git
-cd RatCatcher
+git clone https://github.com/mbfromit/ACE.git
+cd ACE
 
 # 3. Allow scripts in this shell session (Windows only — macOS/Linux skip this)
 #    -Scope Process means the bypass dies with this PowerShell window. It does
@@ -172,8 +172,8 @@ Reports land in `C:\Logs` (Windows) or `/tmp` (macOS/Linux). Submissions appear 
 brew install powershell
 
 # 2. Clone + cd
-git clone https://github.com/mbfromit/RatCatcher.git
-cd RatCatcher
+git clone https://github.com/mbfromit/ACE.git
+cd ACE
 
 # 3. Smoke-test the Pester suite (optional, ~30s)
 pwsh -Command "Invoke-Pester -Path Tests/ -Output Detailed"
@@ -206,9 +206,9 @@ Reports land in `/tmp/MiniShaiHulud-Report-*.html` and `/tmp/MiniShaiHulud-Brief
 
 If you can't `git clone`:
 
-1. Go to https://github.com/mbfromit/RatCatcher
+1. Go to https://github.com/mbfromit/ACE
 2. Click **Code → Download ZIP**
-3. Extract to a folder (e.g. `C:\Tools\RatCatcher`)
+3. Extract to a folder (e.g. `C:\Tools\ACE`)
 4. `cd` into it in PowerShell 7 and continue with step 3 above
 
 ### Basic scan (default: bounded discovery walk across all local drives)
@@ -351,13 +351,13 @@ Plant synthetic Mini Shai-Hulud artifacts under a test root and confirm the scan
 .\TestArtifacts\MiniShaiHulud\Deploy-All.ps1
 
 # Scan the test root (no submission, no prompts)
-.\Invoke-MiniShaiHulud.ps1 -Path C:\RatCatcherTest\MiniShaiHulud -NoSubmit -NonInteractive
+.\Invoke-MiniShaiHulud.ps1 -Path C:\ACETest\MiniShaiHulud -NoSubmit -NonInteractive
 
 # Clean up
 .\TestArtifacts\MiniShaiHulud\Remove-All.ps1
 
 # Re-scan — should report no findings
-.\Invoke-MiniShaiHulud.ps1 -Path C:\RatCatcherTest\MiniShaiHulud -NoSubmit -NonInteractive
+.\Invoke-MiniShaiHulud.ps1 -Path C:\ACETest\MiniShaiHulud -NoSubmit -NonInteractive
 ```
 
 Expected outcome on the first scan: at least one Critical from checks 2, 4, 5, and 9.

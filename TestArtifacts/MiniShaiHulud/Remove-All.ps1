@@ -4,7 +4,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$TestRoot = $(if ($env:OS -eq 'Windows_NT') { 'C:\RatCatcherTest\MiniShaiHulud' } else { '/tmp/RatCatcherTest/MiniShaiHulud' })
+    [string]$TestRoot = $(if ($env:OS -eq 'Windows_NT') { 'C:\ACETest\MiniShaiHulud' } else { '/tmp/ACETest/MiniShaiHulud' })
 )
 
 if (Test-Path $TestRoot) {

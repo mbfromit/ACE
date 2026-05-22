@@ -5,10 +5,10 @@
   Triggers: Check 2 (Dependency Lockfiles) — FAIL, 1 vulnerable project
 .USAGE
   .\Deploy-Check2.ps1
-  .\Invoke-RatCatcher.ps1 -Path C:\RatCatcherTest\Check2
+  .\Invoke-ACE.ps1 -Path C:\ACETest\Check2
 #>
 
-$base = 'C:\RatCatcherTest\Check2'
+$base = 'C:\ACETest\Check2'
 $null = New-Item -ItemType Directory -Path $base -Force
 
 @'

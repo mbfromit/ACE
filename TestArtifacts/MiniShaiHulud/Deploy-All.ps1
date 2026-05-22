@@ -5,14 +5,14 @@
     Drops contrived but realistic IOC data so an engineer can verify
     Invoke-MiniShaiHulud.ps1 against a known-positive scan path. Run
     Remove-All.ps1 to clean up.
-    Default target: C:\RatCatcherTest\MiniShaiHulud on Windows;
-    /tmp/RatCatcherTest/MiniShaiHulud on Unix.
+    Default target: C:\ACETest\MiniShaiHulud on Windows;
+    /tmp/ACETest/MiniShaiHulud on Unix.
 .PARAMETER TestRoot
     Override the destination directory.
 #>
 [CmdletBinding()]
 param(
-    [string]$TestRoot = $(if ($env:OS -eq 'Windows_NT') { 'C:\RatCatcherTest\MiniShaiHulud' } else { '/tmp/RatCatcherTest/MiniShaiHulud' })
+    [string]$TestRoot = $(if ($env:OS -eq 'Windows_NT') { 'C:\ACETest\MiniShaiHulud' } else { '/tmp/ACETest/MiniShaiHulud' })
 )
 
 if (-not (Test-Path $TestRoot)) { New-Item -Path $TestRoot -ItemType Directory -Force | Out-Null }

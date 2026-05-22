@@ -1,16 +1,16 @@
-# Bedrock Safety Checklist — RATCATCHER
+# Bedrock Safety Checklist — Axxess Compliance Engine (ACE)
 
-**Audience:** Security / legal / engineering management reviewing whether the RATCATCHER scanner suite is safe to point at Anthropic Claude Opus 4.7 on AWS Bedrock.
+**Audience:** Security / legal / engineering management reviewing whether the ACE scanner suite is safe to point at Anthropic Claude Opus 4.7 on AWS Bedrock.
 
 **Status of this document:** Engineering controls described under §3 are landed and verified on branch `feature/wormcatcher-bounded-detection` (PR #2). The Bedrock onboarding itself (account, region, IAM, allowlist entry) has not happened — this document defines what needs to be in place before it does.
 
 ---
 
-## 1. What RATCATCHER is and what it sends to an LLM
+## 1. What ACE is and what it sends to an LLM
 
-RATCATCHER is two scanners that run on developer workstations and submit findings to a shared dashboard:
+ACE is two scanners that run on developer workstations and submit findings to a shared dashboard:
 
-- **RatCatcher (Axios scanner)** — looks for the March 2026 Axios supply-chain compromise.
+- **Axios scanner (`Invoke-ACE.ps1`)** — looks for the March 2026 Axios supply-chain compromise.
 - **WormCatcher (Mini Shai-Hulud scanner)** — looks for the April–May 2026 npm worm.
 
 Both scanners produce HTML reports and submit them to a Cloudflare Worker, which stores the reports in R2 and writes summary rows to D1. An AI verifier component (currently OFF in production — see §4) consumes finding content from the report HTML and produces per-finding verdicts (Confirmed / Likely / Unlikely / FalsePositive). The verifier currently calls a self-hosted Ollama (Gemma) tunnel; the Bedrock migration would replace that destination with Anthropic Claude Opus 4.7.
@@ -80,7 +80,7 @@ These risks **are not closed by this branch** and must be considered before appr
 
 ### 4a. WormCatcher-only scope
 
-The redaction work at §3a covers **only the WormCatcher (Mini Shai-Hulud) scanner**. The RatCatcher (Axios) scanner emits findings via a separate path that does NOT flow through `Private/Shared/New-Finding.ps1` and therefore is NOT subject to the redactor. The Bedrock data-handling claim *"no plaintext credentials in the payload"* holds **for WormCatcher submissions only**.
+The redaction work at §3a covers **only the WormCatcher (Mini Shai-Hulud) scanner**. The Axios scanner (`Invoke-ACE.ps1`) emits findings via a separate path that does NOT flow through `Private/Shared/New-Finding.ps1` and therefore is NOT subject to the redactor. The Bedrock data-handling claim *"no plaintext credentials in the payload"* holds **for WormCatcher submissions only**.
 
 **Mitigation options:**
 - Narrow the Bedrock claim to `campaign = 'mini-shai-hulud'` submissions only, and route Axios submissions to a separate (non-Bedrock) verifier or no verifier.
@@ -114,7 +114,7 @@ Before turning on the Bedrock destination:
 
 ### 5a. Account isolation
 
-- Dedicate an AWS account to RATCATCHER's Bedrock usage. Do not co-mingle with production application traffic. Reduces blast radius if the Worker is compromised.
+- Dedicate an AWS account to ACE's Bedrock usage. Do not co-mingle with production application traffic. Reduces blast radius if the Worker is compromised.
 
 ### 5b. Region pinning
 
