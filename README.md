@@ -1,10 +1,10 @@
-# RatCatcher 2.1
+# Access Compliance Engine (ACE) 2.1
 
-![RatCatcher 2.0](RatCatcher2.png)
+![Access Compliance Engine](assets/images/ACE_Logo.png)
 
 An **AI-powered, cross-platform** PowerShell forensic scanner suite for npm supply-chain compromise. The suite ships two scanners that submit to a shared dashboard:
 
-- **`Invoke-RatCatcher.ps1`** (**RatCatcher**) — the **March 31, 2026 Axios NPM supply chain attack** (malicious `plain-crypto-js` dependency in `axios` v1.14.1 / v0.30.4). Ten checks covering the full compromise kill chain.
+- **`Invoke-RatCatcher.ps1`** — the **March 31, 2026 Axios NPM supply chain attack** (malicious `plain-crypto-js` dependency in `axios` v1.14.1 / v0.30.4). Ten checks covering the full compromise kill chain.
 - **`Invoke-MiniShaiHulud.ps1`** (**WormCatcher**) — the **Mini Shai-Hulud npm supply-chain worm** (TeamPCP, April–May 2026 onward). **Sixteen workstation checks** — twelve corroborating signals plus four Tier-1 on-disk IOC probes (worm CI-persistence file, payload, dropper, TruffleHog drop). Phase 1 of the scan does a bounded discovery walk across fixed + removable drives, so code that lives outside the user's home dir (e.g. `C:\Atriora`, `D:\Repos`, a USB dev drive) is no longer invisible. See [WormCatcher usage below](#running-wormcatcher-mini-shai-hulud) and the [WormCatcher runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md). Reports findings only — does **not** certify a machine virus-free (the campaign is polymorphic and lives primarily in CI runners + stolen npm tokens, not on workstations).
 
 Both scanners produce detailed reports and **automatically evaluate every finding using Gemma 4 AI** to distinguish real threats from false positives. The dashboard segments submissions by campaign (Axios vs Mini Shai-Hulud) via a top-level selector, with independent filtering, stats, and AI prompting per campaign.
@@ -17,7 +17,7 @@ You can read more about the attack here: https://thehackernews.com/2026/03/axios
 
 ## What's New in v2.1
 
-- **Cross-Platform Support** - RatCatcher now runs on **Windows, macOS, and Linux**. The scanner auto-detects the platform and uses OS-specific checks for dropped payloads, persistence mechanisms, network evidence, and credential locations. Requires PowerShell 7.0+.
+- **Cross-Platform Support** - ACE now runs on **Windows, macOS, and Linux**. The scanner auto-detects the platform and uses OS-specific checks for dropped payloads, persistence mechanisms, network evidence, and credential locations. Requires PowerShell 7.0+.
 
 ## What's New in v2.0
 
@@ -134,7 +134,7 @@ Reports are always saved locally to `C:\Logs` on Windows or `/tmp` on macOS/Linu
 
 ## Running WormCatcher (Mini Shai-Hulud)
 
-**WormCatcher** (`Invoke-MiniShaiHulud.ps1`) is the sibling scanner for the **Mini Shai-Hulud** npm supply-chain worm. It is a separate script from RatCatcher — different IOCs, different TTPs, different campaign tag in the dashboard. Both scanners can be run on the same machine in either order.
+**WormCatcher** (`Invoke-MiniShaiHulud.ps1`) is the sibling scanner for the **Mini Shai-Hulud** npm supply-chain worm. It is a separate script from the Axios scanner (`Invoke-RatCatcher.ps1`) — different IOCs, different TTPs, different campaign tag in the dashboard. Both scanners can be run on the same machine in either order.
 
 > **Honest scope:** WormCatcher reports the findings produced by sixteen checks at the time it ran. It does **not** certify the machine is virus-free, and makes no 100%-certainty claim. Mini Shai-Hulud is polymorphic and primarily lives in CI runners + stolen npm tokens — pair the scan with token rotation and a CI workflow audit per the [runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md).
 
@@ -200,7 +200,7 @@ Reports land in `/tmp/MiniShaiHulud-Report-*.html` and `/tmp/MiniShaiHulud-Brief
   | Ubuntu/Debian | `sudo apt install powershell` (after adding Microsoft repo) |
   | RHEL/CentOS | `sudo dnf install powershell` (after adding Microsoft repo) |
 
-- **Submission password** — same one your team already uses for RatCatcher. Ask DevOps or your manager.
+- **Submission password** — same one your team already uses for the Axios scanner. Ask DevOps or your manager.
 
 ### Alternate install: download ZIP
 
@@ -270,7 +270,7 @@ pwsh ./Invoke-MiniShaiHulud.ps1 -Path ~/Projects
 
 ### Submission password
 
-Same submission password as RatCatcher — contact your manager or DevOps team. WormCatcher submissions land in the same dashboard tagged with the **Mini Shai-Hulud** campaign, distinguishable from Axios scans by an `[MSH]` chip on each row and via the **Campaign** selector at the top of the dashboard.
+Same submission password as the Axios scanner — contact your manager or DevOps team. WormCatcher submissions land in the same ACE dashboard tagged with the **Mini Shai-Hulud** campaign, distinguishable from Axios scans by an `[MSH]` chip on each row and via the **Campaign** selector at the top of the dashboard.
 
 ### What WormCatcher checks (16 checks — 12 corroborating + 4 Tier-1 IOC probes)
 
@@ -468,7 +468,7 @@ Both files are named with the hostname and timestamp for easy identification.
 
 ### Check 10 — Dashboard Submission
 
-Submits the scan results (verdict, finding counts, and report files) to the RatCatcher dashboard using the submission password entered at the start of the scan. Reports are always saved locally regardless of whether submission succeeds.
+Submits the scan results (verdict, finding counts, and report files) to the ACE dashboard using the submission password entered at the start of the scan. Reports are always saved locally regardless of whether submission succeeds.
 
 ---
 
