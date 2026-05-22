@@ -1,24 +1,44 @@
 function Test-MshNpmAvailable {
     <#
     .SYNOPSIS
-        Returns the full path of the `npm` executable on this workstation,
-        or $null if it isn't installed / not on PATH.
+        Returns the full path of an `npm` executable that ProcessStartInfo
+        can actually launch on this workstation, or $null if npm isn't
+        installed.
 
     .DESCRIPTION
+        Windows ships THREE files when Node is installed:
+          - npm        (bash shell script — useless from .NET Process API)
+          - npm.cmd    (CMD batch — launchable via ProcessStartInfo)
+          - npm.ps1    (PowerShell wrapper — NOT launchable; .NET refuses
+                        with "not a valid application for this OS platform")
+        Get-Command picks .ps1 first via PATHEXT, which fails downstream
+        when we hand it to System.Diagnostics.Process.Start. Prefer .cmd
+        on Windows; on macOS/Linux the bash shim works fine.
+
         Factored out as its own function so Pester can Mock it independently
-        of the rest of the audit pipeline. On Windows `npm` resolves to
-        `npm.cmd`; on macOS / Linux to a shell script. We need the full
-        resolved path because System.Diagnostics.ProcessStartInfo will not
-        do PATHEXT lookup for `.cmd` shims.
+        of the rest of the audit pipeline.
     #>
     [CmdletBinding()]
     [OutputType([string])]
     param()
     $cmd = Get-Command 'npm' -ErrorAction SilentlyContinue
     if (-not $cmd) { return $null }
-    if ($cmd.Source) { return $cmd.Source }
-    if ($cmd.Path)   { return $cmd.Path }
-    return [string]$cmd.Name
+    $resolved = if ($cmd.Source) { $cmd.Source } elseif ($cmd.Path) { $cmd.Path } else { [string]$cmd.Name }
+
+    # Windows: if we got a .ps1, try the .cmd sibling instead.
+    if (($IsWindows -or $env:OS -eq 'Windows_NT') -and $resolved.EndsWith('.ps1')) {
+        $cmdSibling = ($resolved -replace '\.ps1$', '.cmd')
+        if (Test-Path -LiteralPath $cmdSibling) { return $cmdSibling }
+        # Fall back to scanning PATH for npm.cmd directly.
+        $cmdLookup = Get-Command 'npm.cmd' -ErrorAction SilentlyContinue
+        if ($cmdLookup -and ($cmdLookup.Source -or $cmdLookup.Path)) {
+            return ($cmdLookup.Source ?? $cmdLookup.Path)
+        }
+        # No .cmd found — leaving .ps1 will fail at Process.Start but at
+        # least produces an actionable ErrorDetail.
+    }
+
+    return $resolved
 }
 
 function Invoke-MshNpmAuditCli {
