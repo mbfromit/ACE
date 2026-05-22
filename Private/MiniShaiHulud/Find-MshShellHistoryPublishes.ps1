@@ -13,7 +13,15 @@ function Find-MshShellHistoryPublishes {
         attack window.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)]$Iocs)
+    param(
+        [Parameter(Mandatory)]$Iocs,
+        # Override the home-directory root used to locate POSIX history
+        # files (.bash_history, .zsh_history). Defaults to the PowerShell
+        # automatic $HOME variable. Carved out as a parameter so Pester
+        # tests can substitute a sandbox without touching the read-only
+        # $HOME constant.
+        [string]$HomePath = $HOME
+    )
 
     $findings = @()
     $attackStart = $null
@@ -35,7 +43,7 @@ function Find-MshShellHistoryPublishes {
 
     # bash / zsh — POSIX history files
     foreach ($f in @('.bash_history', '.zsh_history')) {
-        $p = Join-Path $HOME $f
+        $p = Join-Path $HomePath $f
         if (Test-Path $p) { $sources += [PSCustomObject]@{ Path = $p; Kind = $f } }
     }
 
