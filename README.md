@@ -5,7 +5,7 @@
 An **AI-powered, cross-platform** PowerShell forensic scanner suite for npm supply-chain compromise. The suite ships two scanners that submit to a shared dashboard:
 
 - **`Invoke-RatCatcher.ps1`** — the **March 31, 2026 Axios NPM supply chain attack** (malicious `plain-crypto-js` dependency in `axios` v1.14.1 / v0.30.4). Ten checks covering the full compromise kill chain.
-- **`Invoke-MiniShaiHulud.ps1`** (**WormCatcher**) — the **Mini Shai-Hulud npm supply-chain worm** (TeamPCP, April–May 2026 onward). **Sixteen workstation checks** — twelve corroborating signals plus four Tier-1 on-disk IOC probes (worm CI-persistence file, payload, dropper, TruffleHog drop). Phase 1 of the scan does a bounded discovery walk across fixed + removable drives, so code that lives outside the user's home dir (e.g. `C:\Atriora`, `D:\Repos`, a USB dev drive) is no longer invisible. See [WormCatcher usage below](#running-wormcatcher-mini-shai-hulud) and the [WormCatcher runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md). Reports findings only — does **not** certify a machine virus-free (the campaign is polymorphic and lives primarily in CI runners + stolen npm tokens, not on workstations).
+- **`Invoke-MiniShaiHulud.ps1`** (**MSH**) — the **Mini Shai-Hulud npm supply-chain worm** (TeamPCP, April–May 2026 onward). **Sixteen workstation checks** — twelve corroborating signals plus four Tier-1 on-disk IOC probes (worm CI-persistence file, payload, dropper, TruffleHog drop). Phase 1 of the scan does a bounded discovery walk across fixed + removable drives, so code that lives outside the user's home dir (e.g. `C:\Atriora`, `D:\Repos`, a USB dev drive) is no longer invisible. See [MSH usage below](#running-msh-mini-shai-hulud) and the [MSH runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md). Reports findings only — does **not** certify a machine virus-free (the campaign is polymorphic and lives primarily in CI runners + stolen npm tokens, not on workstations).
 
 Both scanners produce detailed reports and **automatically evaluate every finding using Gemma 4 AI** to distinguish real threats from false positives. The dashboard segments submissions by campaign (Axios vs Mini Shai-Hulud) via a top-level selector, with independent filtering, stats, and AI prompting per campaign.
 
@@ -132,11 +132,11 @@ Reports are always saved locally to `C:\Logs` on Windows or `/tmp` on macOS/Linu
 
 ---
 
-## Running WormCatcher (Mini Shai-Hulud)
+## Running MSH (Mini Shai-Hulud)
 
-**WormCatcher** (`Invoke-MiniShaiHulud.ps1`) is the sibling scanner for the **Mini Shai-Hulud** npm supply-chain worm. It is a separate script from the Axios scanner (`Invoke-RatCatcher.ps1`) — different IOCs, different TTPs, different campaign tag in the dashboard. Both scanners can be run on the same machine in either order.
+**MSH** (`Invoke-MiniShaiHulud.ps1`) is the sibling scanner for the **Mini Shai-Hulud** npm supply-chain worm. It is a separate script from the Axios scanner (`Invoke-RatCatcher.ps1`) — different IOCs, different TTPs, different campaign tag in the dashboard. Both scanners can be run on the same machine in either order.
 
-> **Honest scope:** WormCatcher reports the findings produced by sixteen checks at the time it ran. It does **not** certify the machine is virus-free, and makes no 100%-certainty claim. Mini Shai-Hulud is polymorphic and primarily lives in CI runners + stolen npm tokens — pair the scan with token rotation and a CI workflow audit per the [runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md).
+> **Honest scope:** MSH reports the findings produced by sixteen checks at the time it ran. It does **not** certify the machine is virus-free, and makes no 100%-certainty claim. Mini Shai-Hulud is polymorphic and primarily lives in CI runners + stolen npm tokens — pair the scan with token rotation and a CI workflow audit per the [runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md).
 
 ### Quick start (5 commands, all you need)
 
@@ -270,9 +270,9 @@ pwsh ./Invoke-MiniShaiHulud.ps1 -Path ~/Projects
 
 ### Submission password
 
-Same submission password as the Axios scanner — contact your manager or DevOps team. WormCatcher submissions land in the same ACE dashboard tagged with the **Mini Shai-Hulud** campaign, distinguishable from Axios scans by an `[MSH]` chip on each row and via the **Campaign** selector at the top of the dashboard.
+Same submission password as the Axios scanner — contact your manager or DevOps team. MSH submissions land in the same ACE dashboard tagged with the **Mini Shai-Hulud** campaign, distinguishable from Axios scans by an `[MSH]` chip on each row and via the **Campaign** selector at the top of the dashboard.
 
-### What WormCatcher checks (16 checks — 12 corroborating + 4 Tier-1 IOC probes)
+### What MSH checks (16 checks — 12 corroborating + 4 Tier-1 IOC probes)
 
 | # | Check | Default severity if hit |
 |---|---|---|
@@ -295,7 +295,7 @@ Same submission password as the Axios scanner — contact your manager or DevOps
 
 The "Tier-1" label means a single hit is sufficient to declare CONFIRMED COMPROMISE — these four filenames have no legitimate origin at those paths. A standard `brew install trufflehog` / `winget install` lands the binary on PATH but NOT at the specific drop paths in Check 16, so legitimate installs don't false-positive.
 
-The IOC list is fetched from the dashboard at startup, with a bundled JSON fallback and a 7-day temp cache for offline use. The bundled list ships with `Invoke-MiniShaiHulud.ps1` and is updated on the server when new waves disclose new compromised packages — re-run WormCatcher after each disclosed wave for full coverage.
+The IOC list is fetched from the dashboard at startup, with a bundled JSON fallback and a 7-day temp cache for offline use. The bundled list ships with `Invoke-MiniShaiHulud.ps1` and is updated on the server when new waves disclose new compromised packages — re-run MSH after each disclosed wave for full coverage.
 
 ### Out of scope (will NOT be detected)
 
@@ -306,11 +306,11 @@ The IOC list is fetched from the dashboard at startup, with a bundled JSON fallb
 - IOC packages not yet in the feed — re-run after each wave
 - Compromise that has cleaned up after itself with no residual disk evidence
 
-For the full remediation playbook (revoke npm tokens, rotate cloud creds, audit `.github/workflows/*.yml` for Pwn Request patterns), see the [WormCatcher runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md).
+For the full remediation playbook (revoke npm tokens, rotate cloud creds, audit `.github/workflows/*.yml` for Pwn Request patterns), see the [MSH runbook](docs/MINI-SHAI-HULUD-RUNBOOK.md).
 
 ### Verdict labels and exit codes
 
-WormCatcher emits a **post-triage** verdict — every finding goes through an authoritative triage step (npm advisory database for BadPackage findings; static Tier-1 rules for worm artifacts) before the headline is computed. A wildcard IOC match (e.g. `@tanstack/*`) that npm audit clears doesn't drive the verdict — it's logged as a "Cleared" watchlist match and reported in the post-triage rollup ("3 confirmed Tier-1, 62 cleared by npm audit").
+MSH emits a **post-triage** verdict — every finding goes through an authoritative triage step (npm advisory database for BadPackage findings; static Tier-1 rules for worm artifacts) before the headline is computed. A wildcard IOC match (e.g. `@tanstack/*`) that npm audit clears doesn't drive the verdict — it's logged as a "Cleared" watchlist match and reported in the post-triage rollup ("3 confirmed Tier-1, 62 cleared by npm audit").
 
 | Verdict | Meaning | Exit code |
 |---|---|---|
@@ -329,20 +329,20 @@ Every BadPackage and Tier-1 finding now carries a verdict envelope:
 
 - **ScannerVerdict**: `Confirmed` | `Cleared` | `Inconclusive`
 - **ScannerVerdictReason**: plain-English citation of the authority (e.g. *"npm advisory database flags @tanstack/react-query@5.0.0 as compromised"* or *"Wildcard IOC matched, but npm advisory database reports no advisories for this exact version. Treating as false positive."*)
-- **ActionRequired**: when the scanner could not conclude, a copy-paste instruction the manager forwards to the affected user (e.g. *"Install Node.js + npm from https://nodejs.org/en/download/, then re-run WormCatcher"* when npm wasn't installed on the workstation; *"Did you install TruffleHog at `<path>` yourself? If no, escalate"* when a TruffleHog binary sits at an unusual path but mtime predates the campaign).
+- **ActionRequired**: when the scanner could not conclude, a copy-paste instruction the manager forwards to the affected user (e.g. *"Install Node.js + npm from https://nodejs.org/en/download/, then re-run MSH"* when npm wasn't installed on the workstation; *"Did you install TruffleHog at `<path>` yourself? If no, escalate"* when a TruffleHog binary sits at an unusual path but mtime predates the campaign).
 - **ActionTarget**: `User` | `Manager` | `UserAndManager`
 
 The executive brief renders an **Action Items** section grouping findings by unique ActionRequired text. The manager copy-pastes each card's instruction to the affected user, the user complies, and the scanner re-runs to resolve.
 
 ### `-SkipNpmAudit` (operator opt-out)
 
-By default WormCatcher runs `npm audit --json` against every project that produced an IOC match (cached per package name; one CLI call per unique package per project). On a typical dev box with 8–10 IOC-matched projects this adds 30–90 seconds. Pass `-SkipNpmAudit` to skip the audit entirely — all wildcard findings then route to `Inconclusive` and the brief's Action Items section lists *"Re-run without `-SkipNpmAudit`"* as the required action. Useful for big monorepos where audit cost outweighs the noise reduction, or when running offline.
+By default MSH runs `npm audit --json` against every project that produced an IOC match (cached per package name; one CLI call per unique package per project). On a typical dev box with 8–10 IOC-matched projects this adds 30–90 seconds. Pass `-SkipNpmAudit` to skip the audit entirely — all wildcard findings then route to `Inconclusive` and the brief's Action Items section lists *"Re-run without `-SkipNpmAudit`"* as the required action. Useful for big monorepos where audit cost outweighs the noise reduction, or when running offline.
 
 ```powershell
 .\Invoke-MiniShaiHulud.ps1 -SkipNpmAudit
 ```
 
-### Verifying WormCatcher locally (synthetic IOCs)
+### Verifying MSH locally (synthetic IOCs)
 
 Plant synthetic Mini Shai-Hulud artifacts under a test root and confirm the scanner detects them, then clean up. Safe to run on any workstation — nothing touches your real npm cache, runner directories, or token files.
 
