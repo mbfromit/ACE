@@ -390,11 +390,33 @@ function Find-MshBadPackages {
             -PackageName $m.PackageName `
             -PackageVersion $m.Version
 
-        $desc = switch ($m.Type) {
-            'BadPackage-Lockfile'  { "Known Mini Shai-Hulud compromised package $($m.PackageName)@$($m.Version) in $($m.LockfileType) lockfile" }
-            'BadPackage-Manifest'  { "Known Mini Shai-Hulud compromised package $($m.PackageName)@$($m.Version) pinned in package.json" }
-            'BadPackage-Installed' { "Known Mini Shai-Hulud compromised package $($m.PackageName)@$($m.Version) physically installed in node_modules (lockfile may have been cleaned)" }
+        # Description text — only assert "known compromised" for the
+        # high-confidence cases (exact pin OR audit-corroborated wildcard).
+        # A bare wildcard match without audit corroboration is a *watchlist*
+        # hit, not a confirmed compromise; saying otherwise is what created
+        # the 62-false-positive headline on the dev-dashboard E2E.
+        $isConfirmedCompromise = ($verdict.ScannerVerdict -eq 'Confirmed')
+        $isHighConfidence      = $isConfirmedCompromise -or (-not $m.IsWildcard)
+
+        $desc = if ($isHighConfidence) {
+            switch ($m.Type) {
+                'BadPackage-Lockfile'  { "Known Mini Shai-Hulud compromised package $($m.PackageName)@$($m.Version) in $($m.LockfileType) lockfile" }
+                'BadPackage-Manifest'  { "Known Mini Shai-Hulud compromised package $($m.PackageName)@$($m.Version) pinned in package.json" }
+                'BadPackage-Installed' { "Known Mini Shai-Hulud compromised package $($m.PackageName)@$($m.Version) physically installed in node_modules (lockfile may have been cleaned)" }
+            }
+        } else {
+            switch ($m.Type) {
+                'BadPackage-Lockfile'  { "Package $($m.PackageName)@$($m.Version) in $($m.LockfileType) lockfile matches Mini Shai-Hulud watchlist (scope wildcard) — see ScannerVerdict for triage" }
+                'BadPackage-Manifest'  { "Package $($m.PackageName)@$($m.Version) pinned in package.json matches Mini Shai-Hulud watchlist (scope wildcard) — see ScannerVerdict for triage" }
+                'BadPackage-Installed' { "Package $($m.PackageName)@$($m.Version) installed in node_modules matches Mini Shai-Hulud watchlist (scope wildcard) — see ScannerVerdict for triage" }
+            }
         }
+
+        # Severity reflects post-triage confidence: Critical only when we're
+        # sure (exact-pin OR audit-confirmed wildcard). Unconfirmed wildcard
+        # hits drop to High so the headline math reflects reality, not the
+        # raw IOC-match count.
+        $severity = if ($isHighConfidence) { 'Critical' } else { 'High' }
 
         $extra = @{
             PackageName                = $m.PackageName
@@ -415,7 +437,7 @@ function Find-MshBadPackages {
 
         $findings += New-Finding `
             -Type $m.Type `
-            -Severity 'Critical' `
+            -Severity $severity `
             -Description $desc `
             -Path $m.Path `
             -Extra $extra

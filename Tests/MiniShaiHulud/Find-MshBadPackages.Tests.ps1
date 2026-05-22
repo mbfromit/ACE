@@ -286,6 +286,64 @@ Describe 'Find-MshBadPackages — verdict envelope on emitted findings' {
         }
     }
 
+    Context 'severity + description reflect post-triage confidence (commit #3)' {
+
+        It 'wildcard + audit-clean → severity High, description does NOT say "known compromised"' {
+            Set-Content -Path (Join-Path $script:proj 'package-lock.json') -Value '{ "lockfileVersion":3, "packages": { "node_modules/@tanstack/react-query": { "version":"5.0.0" } } }' -Encoding utf8
+            Mock Test-MshNpmAvailable { return '/fake/npm' }
+            Mock Invoke-MshNpmAuditCli {
+                [PSCustomObject]@{ ExitCode=0; StdOut='{"auditReportVersion":2,"vulnerabilities":{}}'; StdErr=''
+                                   TimedOut=$false; DurationMs=10; Exception=$null }
+            }
+            $r = @(Find-MshBadPackages -ProjectPath $script:proj -Iocs $script:iocs)
+            $f = $r | Where-Object { $_.PackageName -eq '@tanstack/react-query' } | Select-Object -First 1
+            $f.Severity     | Should -Be 'High'
+            $f.Description  | Should -Not -Match 'compromised'
+            $f.Description  | Should -Match 'watchlist'
+        }
+
+        It 'wildcard + audit-flagged (Confirmed) → severity Critical, description says "compromised"' {
+            Set-Content -Path (Join-Path $script:proj 'package-lock.json') -Value '{ "lockfileVersion":3, "packages": { "node_modules/@tanstack/react-query": { "version":"5.0.0" } } }' -Encoding utf8
+            $auditJson = '{"auditReportVersion":2,"vulnerabilities":{"@tanstack/react-query":{"name":"@tanstack/react-query","severity":"critical","via":[{"name":"@tanstack/react-query","title":"x","url":"https://e.test/a","severity":"critical"}]}}}'
+            Mock Test-MshNpmAvailable { return '/fake/npm' }
+            Mock Invoke-MshNpmAuditCli {
+                [PSCustomObject]@{ ExitCode=1; StdOut=$auditJson; StdErr=''
+                                   TimedOut=$false; DurationMs=10; Exception=$null }
+            }
+            $r = @(Find-MshBadPackages -ProjectPath $script:proj -Iocs $script:iocs)
+            $f = $r | Where-Object { $_.PackageName -eq '@tanstack/react-query' } | Select-Object -First 1
+            $f.Severity    | Should -Be 'Critical'
+            $f.Description | Should -Match 'compromised'
+        }
+
+        It 'exact-pin always Critical regardless of audit outcome (preserves prior behavior)' {
+            Set-Content -Path (Join-Path $script:proj 'package-lock.json') -Value '{ "lockfileVersion":3, "packages": { "node_modules/mbt": { "version":"1.2.48" } } }' -Encoding utf8
+            Mock Test-MshNpmAvailable { return '/fake/npm' }
+            # audit-clean — feeds disagree — Inconclusive verdict, but severity stays Critical
+            Mock Invoke-MshNpmAuditCli {
+                [PSCustomObject]@{ ExitCode=0; StdOut='{"auditReportVersion":2,"vulnerabilities":{}}'; StdErr=''
+                                   TimedOut=$false; DurationMs=10; Exception=$null }
+            }
+            $r = @(Find-MshBadPackages -ProjectPath $script:proj -Iocs $script:iocs)
+            $f = $r | Select-Object -First 1
+            $f.Severity       | Should -Be 'Critical'
+            $f.ScannerVerdict | Should -Be 'Inconclusive'
+            $f.Description    | Should -Match 'compromised'
+        }
+
+        It 'wildcard + npm-not-installed (Inconclusive) → severity High' {
+            Set-Content -Path (Join-Path $script:proj 'package-lock.json') -Value '{ "lockfileVersion":3, "packages": { "node_modules/@tanstack/react-query": { "version":"5.0.0" } } }' -Encoding utf8
+            $lockPath = Join-Path $script:proj 'package-lock.json'
+            (Get-Item $lockPath).LastWriteTimeUtc = [datetime]::Parse('2026-05-15T00:00:00Z').ToUniversalTime()
+            Mock Test-MshNpmAvailable  { return $null }
+            Mock Invoke-MshNpmAuditCli { throw 'should not be called' }
+            $r = @(Find-MshBadPackages -ProjectPath $script:proj -Iocs $script:iocs)
+            $f = $r | Where-Object { $_.PackageName -eq '@tanstack/react-query' } | Select-Object -First 1
+            $f.Severity       | Should -Be 'High'
+            $f.ScannerVerdict | Should -Be 'Inconclusive'
+        }
+    }
+
     Context 'npm-audit cache: one call per unique package even with N findings' {
 
         It 'invokes Invoke-MshNpmAuditCli only once when the same package appears in multiple checks' {
