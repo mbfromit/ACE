@@ -265,7 +265,7 @@ If starting a fresh session, give Claude Code this prompt to get it up to speed 
 > - `cloudflare/src/handlers/ai-verify.js` — Gemma AI verdict logic
 > - `cloudflare/wrangler.toml` — deployment config (D1 + R2 bindings, routes, cron)
 > - `cloudflare/schema.sql` — D1 database schema
-> - `docs/RATCATCHER-HOW-TO.md` — full architecture reference
+> - `docs/ACE-HOW-TO.md` — full architecture reference
 >
 > **Credentials:** `/Users/mberry/.claude/.env` contains `RATCATCHER_ADMIN_PASSWORD` and `CLOUDFLARE_KEY`.
 >

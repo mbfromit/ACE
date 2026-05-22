@@ -7,7 +7,7 @@
   Triggers: Check 7 (Obfuscated Attack Signals) — XorEncodedC2 (Critical)
 .USAGE
   .\Deploy-Check7.ps1
-  .\Invoke-RatCatcher.ps1
+  .\Invoke-ACE.ps1
 #>
 
 $key      = 'OrDeR_7077'

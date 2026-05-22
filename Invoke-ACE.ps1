@@ -1,20 +1,20 @@
 #Requires -Version 7.0
 <#
 .SYNOPSIS
-    RatCatcher — scans for evidence of the March 31, 2026 Axios NPM supply chain attack.
+    Axxess Compliance Engine (ACE) — scans for evidence of the March 31, 2026 Axios NPM supply chain attack.
 .DESCRIPTION
     Runs ten checks covering the full compromise kill chain:
     lockfile evidence, deployed package artifacts, npm cache, dropped RAT payloads,
     persistence mechanisms, XOR-obfuscated indicators, and network evidence.
-    Generates a forensic report and submits results to the RatCatcher dashboard.
+    Generates a forensic report and submits results to the ACE dashboard.
 .PARAMETER Path
     Root directories to scan for Node.js projects. Defaults to common dev locations.
 .PARAMETER OutputPath
     Directory for report and log files.
 .EXAMPLE
-    .\Invoke-RatCatcher.ps1
+    .\Invoke-ACE.ps1
 .EXAMPLE
-    .\Invoke-RatCatcher.ps1 -Path C:\Dev
+    .\Invoke-ACE.ps1 -Path C:\Dev
 #>
 [CmdletBinding()]
 param(
@@ -31,7 +31,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Continue'
-$RatCatcherVersion = '2.1.0'
+$ACEVersion = '2.1.0'
 
 $pvt = Join-Path $PSScriptRoot 'Private'
 # Shared helpers are dot-sourced first so check functions can reference them.
@@ -53,7 +53,7 @@ $pvt = Join-Path $PSScriptRoot 'Private'
 
 # Load logo for HTML reports (resize to ~600px to keep embedded size reasonable)
 $logoBase64 = ''
-$logoFile   = Join-Path $PSScriptRoot 'RatCatcher.png'
+$logoFile   = Join-Path $PSScriptRoot 'assets\images\ACE_Logo.png'
 if (Test-Path $logoFile) {
     try { $logoBase64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($logoFile)) } catch { }
 }
@@ -107,7 +107,7 @@ foreach ($root in $Path) {
     }
 }
 
-# Exclude RatCatcher's own directory to prevent false positives from IOC strings in source code
+# Exclude ACE's own directory to prevent false positives from IOC strings in source code
 $scannerDir = (Resolve-Path $PSScriptRoot).Path
 $resolvedPaths = [System.Collections.Generic.List[string]]@(
     $resolvedPaths | Where-Object { -not $_.StartsWith($scannerDir) }
@@ -117,7 +117,7 @@ $resolvedPaths = [System.Collections.Generic.List[string]]@(
 $detectedOS = if ($IsWindows) { 'Windows' } elseif ($IsMacOS) { 'macOS' } else { 'Linux' }
 Write-Host ''
 Write-Host '================================================================'
-Write-Host "  AXXESS COMPLIANCE ENGINE v$RatCatcherVersion"
+Write-Host "  AXXESS COMPLIANCE ENGINE v$ACEVersion"
 Write-Host "  Platform: $detectedOS | PowerShell $($PSVersionTable.PSVersion)"
 Write-Host '================================================================'
 Write-Host ''
@@ -172,7 +172,7 @@ if (-not $NoSubmit) {
 $null = New-Item -ItemType Directory -Path $OutputPath -Force
 $hn   = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } elseif ($env:HOSTNAME) { $env:HOSTNAME } elseif (Get-Command hostname -ErrorAction SilentlyContinue) { (hostname).Trim() } else { 'unknown' }
 $ts   = Get-Date -Format 'yyyyMMdd-HHmmss'
-$log  = Join-Path $OutputPath "RatCatcher-${hn}-${ts}.log"
+$log  = Join-Path $OutputPath "ACE-${hn}-${ts}.log"
 
 function Write-Log {
     param([string]$Msg, [string]$Level = 'INFO')

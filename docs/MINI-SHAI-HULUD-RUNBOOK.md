@@ -2,7 +2,7 @@
 
 ## What this is
 
-`Invoke-MiniShaiHulud.ps1` is a workstation forensic scanner for the **Mini Shai-Hulud** npm supply-chain worm (TeamPCP, April–May 2026 onward). It is a separate script from `Invoke-RatCatcher.ps1` (which scans for the March 31, 2026 Axios campaign). Both submit to the same RatCatcher dashboard; the dashboard distinguishes them with a campaign tag.
+`Invoke-MiniShaiHulud.ps1` is a workstation forensic scanner for the **Mini Shai-Hulud** npm supply-chain worm (TeamPCP, April–May 2026 onward). It is a separate script from `Invoke-ACE.ps1` (which scans for the March 31, 2026 Axios campaign; the legacy `Invoke-RatCatcher.ps1` name is retained as a back-compat shim). Both submit to the same Axxess Compliance Engine (ACE) dashboard; the dashboard distinguishes them with a campaign tag.
 
 ## What this is NOT
 
@@ -16,8 +16,8 @@
 ## Download
 
 ```powershell
-git clone https://github.com/mbfromit/RatCatcher.git
-cd RatCatcher
+git clone https://github.com/mbfromit/ACE.git
+cd ACE
 ```
 
 Engineers who already cloned the repo for the Axios scanner: `git pull` is enough.

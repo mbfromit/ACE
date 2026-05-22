@@ -6,10 +6,10 @@
             MaliciousScript (High - hash mismatch variant), C2Indicator (Critical)
 .USAGE
   .\Deploy-Check3.ps1
-  .\Invoke-RatCatcher.ps1 -Path C:\RatCatcherTest\Check3
+  .\Invoke-ACE.ps1 -Path C:\ACETest\Check3
 #>
 
-$base   = 'C:\RatCatcherTest\Check3'
+$base   = 'C:\ACETest\Check3'
 $pkgDir = "$base\node_modules\plain-crypto-js"
 $null   = New-Item -ItemType Directory -Path $pkgDir -Force
 

@@ -5,16 +5,16 @@
 
 Write-Host ''
 Write-Host '====================================================='
-Write-Host '  RATCATCHER — REMOVING ALL TEST ARTIFACTS'
+Write-Host '  ACE — REMOVING ALL TEST ARTIFACTS'
 Write-Host '====================================================='
 Write-Host ''
 
-# C:\RatCatcherTest (checks 2, 3, 4, 8)
-if (Test-Path 'C:\RatCatcherTest') {
-    Remove-Item 'C:\RatCatcherTest' -Recurse -Force
-    Write-Host '[CLEANUP] Removed C:\RatCatcherTest'
+# C:\ACETest (checks 2, 3, 4, 8)
+if (Test-Path 'C:\ACETest') {
+    Remove-Item 'C:\ACETest' -Recurse -Force
+    Write-Host '[CLEANUP] Removed C:\ACETest'
 } else {
-    Write-Host '[CLEANUP] C:\RatCatcherTest not found — skipping'
+    Write-Host '[CLEANUP] C:\ACETest not found — skipping'
 }
 
 # Check 5: PE stub in Temp
@@ -37,11 +37,11 @@ if (Test-Path $c2file) {
 
 # Check 6: registry Run key
 $regPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
-if (Get-ItemProperty -Path $regPath -Name 'RatCatcherTest' -ErrorAction SilentlyContinue) {
-    Remove-ItemProperty -Path $regPath -Name 'RatCatcherTest'
-    Write-Host '[CLEANUP] Removed registry Run key: RatCatcherTest'
+if (Get-ItemProperty -Path $regPath -Name 'ACETest' -ErrorAction SilentlyContinue) {
+    Remove-ItemProperty -Path $regPath -Name 'ACETest'
+    Write-Host '[CLEANUP] Removed registry Run key: ACETest'
 } else {
-    Write-Host '[CLEANUP] Registry key RatCatcherTest not found — skipping'
+    Write-Host '[CLEANUP] Registry key ACETest not found — skipping'
 }
 
 Write-Host ''
