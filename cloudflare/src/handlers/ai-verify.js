@@ -1,5 +1,6 @@
 import { json, checkAdminPassword } from '../util.js'
 import { getCampaignPrompt } from '../prompts/index.js'
+import { assertApprovedEndpoint } from '../config/ai-endpoints.js'
 
 
 /**
@@ -46,6 +47,7 @@ function stripTags(html) {
  */
 async function checkModelStatus(env) {
   try {
+    assertApprovedEndpoint(env)
     const resp = await fetch(env.AI_TUNNEL_URL + '/api/ps', {
       headers: { 'X-API-Key': env.AI_API_KEY },
       signal: AbortSignal.timeout(10_000)
@@ -65,6 +67,7 @@ async function checkModelStatus(env) {
  * Handles Cloudflare 524 timeouts gracefully since model loading can exceed CF's timeout.
  */
 async function warmUpModel(env) {
+  assertApprovedEndpoint(env)
   // Fire the load request — don't wait for it to complete (CF may 524 it)
   fetch(env.AI_TUNNEL_URL + '/api/generate', {
     method: 'POST',
@@ -95,6 +98,7 @@ async function warmUpModel(env) {
  * the prompts registry).
  */
 async function verifyOneFinding(finding, env, campaign) {
+  assertApprovedEndpoint(env)
   const { systemPrompt, articleContext, userPromptIntro } = getCampaignPrompt(campaign)
   const userPrompt = `REFERENCE ARTICLE:\n${articleContext}\n\nSCANNER FINDING (Category: ${finding.type}):\n${finding.raw}\n\n${userPromptIntro}`
 
@@ -172,6 +176,13 @@ async function verifyOneFinding(finding, env, campaign) {
  * Verify all findings for a submission. Returns summary.
  */
 export async function verifySubmissionFindings(submissionId, env) {
+  // Fast-fail the whole pipeline if the AI destination isn't approved.
+  // Done at the top BEFORE any DB writes so a misconfigured AI_TUNNEL_URL
+  // doesn't leave the submission row in AI_PENDING state. The inner fetch
+  // sites also gate (defense in depth) but this is the user-facing error
+  // surface.
+  assertApprovedEndpoint(env)
+
   // Get the report HTML from R2 plus the campaign so we pick the right AI prompt
   const row = await env.DB.prepare('SELECT report_key, campaign FROM submissions WHERE id = ?')
     .bind(submissionId).first()
