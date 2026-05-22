@@ -1,6 +1,6 @@
 # Access Compliance Engine (ACE) 2.1
 
-![Access Compliance Engine](assets/images/ACE_Logo.png)
+<img src="assets/images/ACE_Logo.png" alt="Access Compliance Engine" width="627">
 
 An **AI-powered, cross-platform** PowerShell forensic scanner suite for npm supply-chain compromise. The suite ships two scanners that submit to a shared dashboard:
 
